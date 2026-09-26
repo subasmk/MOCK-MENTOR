@@ -14,8 +14,8 @@ import './Layout.css';
 export default function Layout({ children }) {
   const { pathname } = useLocation();
 
-  /** True when the interview call screen is active */
-  const isCallScreen = pathname === '/interview';
+  /** Routes that take over the full viewport (no navbar, no container padding) */
+  const isCallScreen = pathname === '/interview' || pathname === '/report';
 
   /** Returns the active class for a nav link */
   const navClass = (path) =>

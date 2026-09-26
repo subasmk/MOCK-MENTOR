@@ -3,13 +3,13 @@
  *
  * Shared application state passed down via React Context.
  * Holds:
- *  - resumeText   : raw text of the user's uploaded / pasted résumé
- *  - role         : target job role string (e.g. "Senior Frontend Engineer")
- *  - avatar       : filename of the chosen interviewer avatar (e.g. "mentor-aria.png")
- *  - transcript   : array of { speaker: 'user'|'mentor', text: string } turn objects
+ *  - resumeText   : raw résumé text
+ *  - role         : target job role string
+ *  - avatar       : chosen interviewer id ('male' | 'female' | 'robot')
+ *  - transcript   : array of turn objects:
+ *      { id, speaker: 'user'|'mentor', text, timestamp: ISO string }
  *
- * All setters are exposed so any descendant component can update state
- * without prop-drilling.
+ * All setters are exposed so any descendant can update state without prop-drilling.
  */
 import React, { createContext, useContext, useState, useCallback } from 'react';
 
@@ -25,11 +25,20 @@ export function MockMentorProvider({ children }) {
 
   /**
    * Append a single turn to the interview transcript.
+   * Each turn carries a wall-clock timestamp so the report can display timing.
    * @param {'user'|'mentor'} speaker
    * @param {string} text
    */
   const addTurn = useCallback((speaker, text) => {
-    setTranscript((prev) => [...prev, { speaker, text, id: Date.now() + Math.random() }]);
+    setTranscript((prev) => [
+      ...prev,
+      {
+        id:        Date.now() + Math.random(),
+        speaker,
+        text,
+        timestamp: new Date().toISOString(),
+      },
+    ]);
   }, []);
 
   /** Clear the transcript (e.g. when starting a fresh session). */

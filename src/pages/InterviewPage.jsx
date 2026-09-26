@@ -117,14 +117,15 @@ export default function InterviewPage() {
   ───────────────────────────────────────────────────── */
   const [camStatus,   setCamStatus]   = useState('idle');   // 'idle'|'active'|'denied'
   const [elapsed,     setElapsed]     = useState(0);
-  const [isSpeaking,  setIsSpeaking]  = useState(false);    // interviewer speaking animation
-  const [isLoading,   setIsLoading]   = useState(false);    // Gemini in-flight
-  const [listenState, setListenState] = useState('idle');   // 'idle'|'listening'|'paused'
-  const [subtitle,    setSubtitle]    = useState('');       // shown in subtitle bar
-  const [interimText, setInterimText] = useState('');       // live STT partial
-  const [apiError,    setApiError]    = useState('');
-  const [isDone,      setIsDone]      = useState(false);
-  const [reprompt,    setReprompt]    = useState(false);    // "didn't catch that" flag
+  const [isSpeaking,    setIsSpeaking]    = useState(false); // interviewer speaking animation
+  const [isLoading,     setIsLoading]     = useState(false); // Gemini in-flight
+  const [listenState,   setListenState]   = useState('idle');// 'idle'|'listening'|'paused'
+  const [subtitle,      setSubtitle]      = useState('');    // shown in subtitle bar
+  const [interimText,   setInterimText]   = useState('');    // live STT partial
+  const [apiError,      setApiError]      = useState('');
+  const [isDone,        setIsDone]        = useState(false); // 6 questions complete
+  const [reprompt,      setReprompt]      = useState(false); // "didn't catch that" flag
+  const [showComplete,  setShowComplete]  = useState(false); // completion overlay
 
   /* Text input fallback */
   const [inputText, setInputText] = useState('');
@@ -343,15 +344,29 @@ export default function InterviewPage() {
 
       /* ── Speak the reply out loud ──────────────────────
          isSpeaking stays true until the utterance fires onEnd.
-         That onEnd event is also what triggers the STT auto-start
-         (via the isSpeaking useEffect below), so the timing is exact.
+         That onEnd event is also what triggers STT auto-start
+         (via the isSpeaking useEffect), so timing is exact.
+         On session end: show the completion overlay after speech finishes,
+         then navigate to /report after a 2.5 s transition.
       ─────────────────────────────────────────────────── */
       setIsSpeaking(true);
       speakText({
         text:     reply,
-        avatarId: avatar,                   // 'male' | 'female' | 'robot'
-        onEnd:    () => setIsSpeaking(false),
-        onError:  () => setIsSpeaking(false),
+        avatarId: avatar,
+        onEnd: () => {
+          setIsSpeaking(false);
+          if (sessionEnded) {
+            /* Show "Interview complete" overlay, then go to report */
+            stopListening('session-ended');
+            setShowComplete(true);
+            setTimeout(() => {
+              clearInterval(timerRef.current);
+              stopWebcam();
+              navigate('/report');
+            }, 2500);
+          }
+        },
+        onError: () => setIsSpeaking(false),
       });
 
     } catch (err) {
@@ -442,13 +457,17 @@ export default function InterviewPage() {
   /* ─────────────────────────────────────────────────────
      End session
   ───────────────────────────────────────────────────── */
+  /**
+   * End session — stop all I/O, preserve transcript in context, go to /report.
+   * Transcript is intentionally NOT cleared here; ReportPage reads it.
+   * Call clearTranscript() only when a brand-new session starts on SetupPage.
+   */
   function handleEndSession() {
     clearInterval(timerRef.current);
-    cancelSpeech();               // cut off any ongoing TTS immediately
+    cancelSpeech();
     stopListening('end');
     stopWebcam();
-    clearTranscript();
-    navigate('/setup');
+    navigate('/report');
   }
 
   /* ─────────────────────────────────────────────────────
@@ -476,6 +495,33 @@ export default function InterviewPage() {
   ───────────────────────────────────────────────────── */
   return (
     <div className="iv-root">
+
+      {/* ══════════════════════════════════════════════
+          Interview-complete transition overlay
+          Shown when Gemini signals the 6 questions are done.
+          Fades in over the call screen, then the page navigates to /report.
+      ══════════════════════════════════════════════ */}
+      {showComplete && (
+        <div className="iv-complete-overlay" role="status" aria-live="assertive">
+          {/* Animated checkmark ring */}
+          <div className="iv-complete-ring" aria-hidden="true">
+            <svg viewBox="0 0 52 52" fill="none">
+              <circle className="iv-complete-ring__track" cx="26" cy="26" r="22" stroke="rgba(0,229,255,0.15)" strokeWidth="3"/>
+              <circle className="iv-complete-ring__progress" cx="26" cy="26" r="22" stroke="#00e5ff" strokeWidth="3"
+                strokeDasharray="138" strokeDashoffset="138" strokeLinecap="round"/>
+              <path className="iv-complete-ring__check" d="M14 26l8 8 16-16"
+                stroke="#00e5ff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+                fill="none"/>
+            </svg>
+          </div>
+          <h2 className="iv-complete-title">Interview Complete</h2>
+          <p className="iv-complete-sub">Preparing your report…</p>
+          {/* Loading dots */}
+          <span className="iv-complete-dots" aria-hidden="true">
+            <span /><span /><span />
+          </span>
+        </div>
+      )}
 
       {/* ══════════════════════════════════════════════
           HUD

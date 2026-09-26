@@ -879,3 +879,105 @@
   from { transform: scaleY(0.35); opacity: 0.5; }
   to   { transform: scaleY(1);    opacity: 1; }
 }
+
+/* =========================================================
+   Interview-complete transition overlay
+   ========================================================= */
+
+/* Full-screen dark scrim that fades in over the call UI */
+.iv-complete-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;                  /* above everything in iv-root */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  background: rgba(6, 13, 31, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  animation: completeOverlayIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes completeOverlayIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ── Animated SVG ring + checkmark ── */
+.iv-complete-ring {
+  width: 96px;
+  height: 96px;
+  position: relative;
+}
+
+.iv-complete-ring svg {
+  width: 100%;
+  height: 100%;
+  /* Rotate so the progress arc starts at the top */
+  transform: rotate(-90deg);
+}
+
+/* The progress arc draws itself */
+.iv-complete-ring__progress {
+  animation: drawArc 0.9s 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes drawArc {
+  to { stroke-dashoffset: 0; }
+}
+
+/* The checkmark draws itself after the arc completes */
+.iv-complete-ring__check {
+  /* Checkmark path length ≈ 40 */
+  stroke-dasharray: 40;
+  stroke-dashoffset: 40;
+  /* Undo the svg rotation so the check renders upright */
+  transform-origin: center;
+  transform: rotate(90deg) translate(0, -52px);
+  animation: drawCheck 0.4s 1.1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes drawCheck {
+  to { stroke-dashoffset: 0; }
+}
+
+/* ── Text labels ── */
+.iv-complete-title {
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  background: linear-gradient(90deg, var(--color-glow-cyan) 0%, #fff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: completeTextIn 0.5s 0.5s both;
+}
+
+.iv-complete-sub {
+  font-size: 0.95rem;
+  color: var(--color-text-muted);
+  animation: completeTextIn 0.5s 0.65s both;
+}
+
+@keyframes completeTextIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Loading dots below the subtitle */
+.iv-complete-dots {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  animation: completeTextIn 0.5s 0.8s both;
+}
+.iv-complete-dots span {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-glow-cyan);
+  animation: dotBounce 1.1s infinite ease-in-out;
+}
+.iv-complete-dots span:nth-child(2) { animation-delay: 0.18s; }
+.iv-complete-dots span:nth-child(3) { animation-delay: 0.36s; }

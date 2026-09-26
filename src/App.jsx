@@ -1,18 +1,18 @@
 /**
  * App.jsx
  *
- * Root routing shell. Defines the two primary routes:
+ * Root routing shell.
  *   /setup     — onboarding: paste résumé, pick role & avatar
- *   /interview — live mock-interview session
- *
- * Navigating to "/" automatically redirects to "/setup".
+ *   /interview — live mock-interview session (full-viewport, no nav)
+ *   /report    — post-interview transcript & summary (full-viewport, no nav)
  */
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 
-import Layout    from './components/Layout';
-import SetupPage from './pages/SetupPage';
+import Layout       from './components/Layout';
+import SetupPage    from './pages/SetupPage';
 import InterviewPage from './pages/InterviewPage';
+import ReportPage   from './pages/ReportPage';
 
 export default function App() {
   return (
@@ -27,7 +27,10 @@ export default function App() {
         {/* Live mock interview */}
         <Route path="/interview" element={<InterviewPage />} />
 
-        {/* Catch-all — send unknown paths back to setup */}
+        {/* Post-interview report */}
+        <Route path="/report" element={<ReportPage />} />
+
+        {/* Catch-all */}
         <Route path="*" element={<Navigate to="/setup" replace />} />
       </Routes>
     </Layout>
