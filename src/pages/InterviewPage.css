@@ -10,7 +10,7 @@
   position: fixed;          /* take over the full screen */
   inset: 0;
   display: grid;
-  grid-template-rows: 52px 1fr 108px;   /* HUD · stage · bottom bar */
+  grid-template-rows: 52px 1fr 148px;   /* HUD · stage · bottom bar (subtitles+input+controls) */
   background: var(--color-bg);
   overflow: hidden;
   /* Subtle radial glow centred in the room */
@@ -517,6 +517,98 @@
   font-style: italic;
 }
 
+/* Error state in subtitle bar */
+.iv-subtitles__error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--color-danger);
+  background: rgba(244, 63, 94, 0.08);
+  border: 1px solid rgba(244, 63, 94, 0.25);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  max-width: 760px;
+  line-height: 1.5;
+}
+
+/* Loading / preparing state */
+.iv-subtitles__loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+.iv-subtitles__loading-dots {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+.iv-subtitles__loading-dots span {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-glow-cyan);
+  animation: dotBounce 1.1s infinite ease-in-out;
+}
+.iv-subtitles__loading-dots span:nth-child(2) { animation-delay: 0.18s; }
+.iv-subtitles__loading-dots span:nth-child(3) { animation-delay: 0.36s; }
+
+/* ─────────────────────────────────────────────────────────
+   Text input fallback row
+───────────────────────────────────────────────────────── */
+.iv-input-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 0 2px;
+}
+
+.iv-input {
+  flex: 1;
+  background: rgba(13, 27, 56, 0.8);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 0.88rem;
+  padding: 9px 14px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  caret-color: var(--color-glow-cyan);
+}
+.iv-input::placeholder { color: var(--color-text-dim); }
+.iv-input:focus {
+  border-color: rgba(0, 229, 255, 0.45);
+  box-shadow: 0 0 0 2px rgba(0, 229, 255, 0.1);
+}
+.iv-input:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Send button */
+.iv-send-btn {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-accent);
+  border: none;
+  color: #060d1f;
+  cursor: pointer;
+  transition: opacity 0.15s, box-shadow 0.2s, transform 0.1s;
+}
+.iv-send-btn:hover:not(:disabled) {
+  opacity: 0.88;
+  box-shadow: var(--shadow-glow-cyan);
+}
+.iv-send-btn:active:not(:disabled) { transform: scale(0.93); }
+.iv-send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
 /* ── Controls row ── */
 .iv-controls {
   display: flex;
@@ -525,33 +617,25 @@
   gap: var(--space-lg);
 }
 
-/* ── Dev trigger button (subtle ghost circle) ── */
-.iv-trigger-btn {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 229, 255, 0.06);
-  border: 1.5px solid rgba(0, 229, 255, 0.2);
-  color: var(--color-text-muted);
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
+/* Interview-complete badge */
+.iv-done-badge {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--color-success);
+  background: rgba(34, 211, 165, 0.1);
+  border: 1px solid rgba(34, 211, 165, 0.3);
+  border-radius: 100px;
+  padding: 4px 14px;
 }
-.iv-trigger-btn:hover:not(:disabled) {
-  background: rgba(0, 229, 255, 0.12);
-  border-color: rgba(0, 229, 255, 0.45);
-  color: var(--color-glow-cyan);
-}
-.iv-trigger-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
+/* Spinner (used by send button while loading) */
 .iv-trigger-spinner {
   display: inline-block;
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(0,229,255,0.2);
-  border-top-color: var(--color-glow-cyan);
+  width: 15px;
+  height: 15px;
+  border: 2px solid rgba(6, 13, 31, 0.3);
+  border-top-color: #060d1f;
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
