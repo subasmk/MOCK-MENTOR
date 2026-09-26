@@ -666,3 +666,186 @@
 .iv-end-btn:active {
   transform: scale(0.96);
 }
+
+/* =========================================================
+   Voice / Speech Recognition styles
+   ========================================================= */
+
+/* ── Webcam tile: listening border glow ── */
+.iv-tile--user-listening {
+  border-color: var(--color-glow-cyan);
+  box-shadow: 0 0 0 1px rgba(0,229,255,0.2), 0 0 28px rgba(0,229,255,0.12);
+}
+
+/* Listening ring — animated inset overlay inside the webcam tile */
+.iv-listen-ring {
+  position: absolute;
+  inset: 4px;
+  border-radius: calc(var(--radius-lg) - 4px);
+  border: 2px solid rgba(0, 229, 255, 0.45);
+  pointer-events: none;
+  z-index: 7;
+  animation: listenRing 1.8s ease-in-out infinite;
+}
+@keyframes listenRing {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50%       { opacity: 0.75; transform: scale(1.012); }
+}
+
+/* ── Mic pill: active (MIC ON) state ── */
+.iv-cam-pill--active {
+  background: rgba(0, 229, 255, 0.15);
+  border: 1px solid rgba(0, 229, 255, 0.4);
+  color: var(--color-glow-cyan);
+}
+
+/* ── Subtitle bar: interim (user speaking) state ── */
+.iv-subtitles--interim {
+  background: rgba(0, 229, 255, 0.03);
+  border-radius: var(--radius-sm);
+}
+
+/* Live interim text — italic, slightly dimmed */
+.iv-subtitles__interim {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: var(--color-glow-cyan);
+  font-style: italic;
+  opacity: 0.88;
+  max-width: 780px;
+  text-align: center;
+  line-height: 1.5;
+  /* No fade animation — it updates in real-time */
+}
+
+/* Blinking cursor appended to interim text */
+.iv-subtitles__cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: var(--color-glow-cyan);
+  border-radius: 1px;
+  vertical-align: text-bottom;
+  margin-left: 2px;
+  animation: blink 1s step-end infinite;
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+/* "Listening… speak your answer" prompt */
+.iv-subtitles__listen-prompt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.82rem;
+  color: var(--color-glow-cyan);
+  opacity: 0.75;
+  font-style: italic;
+}
+
+/* Pulsing circle before "Listening…" text */
+.iv-listen-pulse {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-glow-cyan);
+  animation: listenPulse 1.2s ease-in-out infinite;
+}
+@keyframes listenPulse {
+  0%, 100% { transform: scale(0.6); opacity: 0.4; box-shadow: 0 0 0 0 rgba(0,229,255,0); }
+  50%       { transform: scale(1.2); opacity: 1;   box-shadow: 0 0 0 5px rgba(0,229,255,0.15); }
+}
+
+/* Reprompt (didn't catch that) — amber/warning tone */
+.iv-subtitles__reprompt {
+  font-size: 0.82rem;
+  color: #f0b429;
+  background: rgba(240, 180, 41, 0.07);
+  border: 1px solid rgba(240, 180, 41, 0.25);
+  border-radius: var(--radius-sm);
+  padding: 5px 14px;
+  text-align: center;
+  max-width: 580px;
+  animation: subtitleFade 0.25s ease;
+}
+
+/* ── Mic toggle button ── */
+.iv-mic-btn {
+  position: relative;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--color-border);
+  background: var(--color-surface-alt);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.2s;
+  overflow: visible;     /* let ripple bleed outside */
+}
+.iv-mic-btn:hover:not(:disabled):not(.iv-mic-btn--active) {
+  background: rgba(0, 229, 255, 0.08);
+  border-color: rgba(0, 229, 255, 0.4);
+  color: var(--color-glow-cyan);
+}
+.iv-mic-btn:disabled,
+.iv-mic-btn--busy {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Active (listening) state */
+.iv-mic-btn--active {
+  background: rgba(0, 229, 255, 0.12);
+  border-color: var(--color-glow-cyan);
+  color: var(--color-glow-cyan);
+  box-shadow: 0 0 14px rgba(0, 229, 255, 0.3);
+}
+
+/* Expanding ripple ring */
+.iv-mic-ripple {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(0, 229, 255, 0.5);
+  animation: micRipple 1.4s ease-out infinite;
+  pointer-events: none;
+}
+@keyframes micRipple {
+  0%   { transform: scale(0.85); opacity: 0.8; }
+  100% { transform: scale(1.55); opacity: 0; }
+}
+
+/* Animated mic bars (shown instead of static icon while listening) */
+.iv-mic-bars {
+  display: inline-flex;
+  gap: 2px;
+  align-items: flex-end;
+  height: 16px;
+}
+.iv-mic-bars span {
+  display: inline-block;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--color-glow-cyan);
+  animation: micBarWave 0.7s ease-in-out infinite alternate;
+  transform-origin: bottom;
+}
+.iv-mic-bars span:nth-child(1) { height: 5px;  animation-delay: 0.0s; }
+.iv-mic-bars span:nth-child(2) { height: 10px; animation-delay: 0.1s; }
+.iv-mic-bars span:nth-child(3) { height: 14px; animation-delay: 0.2s; }
+.iv-mic-bars span:nth-child(4) { height: 9px;  animation-delay: 0.3s; }
+.iv-mic-bars span:nth-child(5) { height: 4px;  animation-delay: 0.4s; }
+
+@keyframes micBarWave {
+  from { transform: scaleY(0.35); opacity: 0.5; }
+  to   { transform: scaleY(1);    opacity: 1; }
+}
