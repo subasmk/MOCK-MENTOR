@@ -1,45 +1,456 @@
 /* =========================================================
-   SetupPage.css
+   SetupPage.css — MockMentor Setup Screen
+   Dark navy holographic theme
    ========================================================= */
 
+/* ── Page shell ── */
 .setup-page {
   display: flex;
   flex-direction: column;
   gap: var(--space-xl);
+  max-width: 760px;
+  margin: 0 auto;
 }
 
-/* ── Header ── */
-.setup-page__header h1 {
+/* ─────────────────────────────────────────────────────────
+   Hero header
+───────────────────────────────────────────────────────── */
+.setup-hero {
+  text-align: center;
+  padding: var(--space-lg) 0 var(--space-sm);
+}
+
+/* Badge pill above the title */
+.setup-hero__badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--color-glow-cyan);
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  border-radius: 100px;
+  padding: 3px 14px;
+  margin-bottom: var(--space-md);
+  background: rgba(0, 229, 255, 0.05);
+}
+
+.setup-hero__title {
+  font-size: 2.1rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
   margin-bottom: var(--space-sm);
+  /* Gradient text */
+  background: linear-gradient(
+    100deg,
+    var(--color-text)       0%,
+    var(--color-glow-cyan) 55%,
+    var(--color-glow-violet) 100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
-/* ── Form card ── */
+.setup-hero__sub {
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+/* ─────────────────────────────────────────────────────────
+   Form card
+───────────────────────────────────────────────────────── */
 .setup-form {
   display: flex;
   flex-direction: column;
-  gap: var(--space-lg);
+  gap: 0;                   /* sections handle their own gap via border */
+  padding: 0;
+  overflow: hidden;          /* clip section borders cleanly */
 }
 
-/* Error styles */
+/* ─────────────────────────────────────────────────────────
+   Sections  (numbered blocks inside the card)
+───────────────────────────────────────────────────────── */
+.setup-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-xl) var(--space-xl);
+  border-bottom: 1px solid var(--color-border);
+}
+.setup-section:last-of-type { border-bottom: none; }
+
+/* Section title row */
+.setup-section__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+/* Step number badge */
+.setup-section__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: rgba(0, 229, 255, 0.1);
+  border: 1px solid rgba(0, 229, 255, 0.25);
+  color: var(--color-glow-cyan);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.setup-section__hint {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  margin-top: -8px;
+}
+.setup-section__hint code {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  background: rgba(0, 229, 255, 0.07);
+  border: 1px solid rgba(0, 229, 255, 0.15);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--color-glow-cyan);
+}
+
+/* ─────────────────────────────────────────────────────────
+   Résumé textarea override
+───────────────────────────────────────────────────────── */
+.resume-textarea {
+  min-height: 200px;
+  font-size: 0.82rem;
+  line-height: 1.75;
+}
+
+/* Character count hint */
+.char-count {
+  font-size: 0.72rem;
+  color: var(--color-text-dim);
+  text-align: right;
+}
+
+/* ─────────────────────────────────────────────────────────
+   File upload row
+───────────────────────────────────────────────────────── */
+.upload-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+/* Hide the native file input visually but keep it accessible */
+.upload-input-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.upload-btn {
+  gap: 8px;
+  white-space: nowrap;
+}
+
+/* Spinner inside upload button */
+.upload-btn__spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(0, 229, 255, 0.25);
+  border-top-color: var(--color-glow-cyan);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Filename chip */
+.upload-filename {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--color-glow-cyan);
+  background: rgba(0, 229, 255, 0.06);
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  border-radius: 100px;
+  padding: 4px 10px 4px 8px;
+}
+
+.upload-filename__clear {
+  background: none;
+  border: none;
+  color: var(--color-text-dim);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 0 0 4px;
+  transition: color 0.12s;
+}
+.upload-filename__clear:hover { color: var(--color-danger); }
+
+/* ─────────────────────────────────────────────────────────
+   Role select wrapper (custom chevron)
+───────────────────────────────────────────────────────── */
+.select-wrap {
+  position: relative;
+}
+
+/* Remove native arrow */
+.select-wrap .form-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 2.5rem;   /* room for custom chevron */
+  cursor: pointer;
+}
+
+.select-chevron {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+/* ─────────────────────────────────────────────────────────
+   Validation errors (shared pattern)
+───────────────────────────────────────────────────────── */
 .form-input--error {
   border-color: var(--color-danger) !important;
-  box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.12);
+  box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.12) !important;
 }
 .form-error {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   color: var(--color-danger);
-  margin-top: 2px;
 }
 
-/* Submit row */
-.setup-form__actions {
+/* ─────────────────────────────────────────────────────────
+   Interviewer cards grid
+───────────────────────────────────────────────────────── */
+.interviewer-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-md);
+}
+
+@media (max-width: 560px) {
+  .interviewer-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Base card ── */
+.interviewer-card {
+  position: relative;
   display: flex;
-  justify-content: flex-end;
-  padding-top: var(--space-sm);
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: var(--space-lg) var(--space-md) var(--space-md);
+  background: var(--color-surface-alt);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition:
+    border-color 0.2s,
+    box-shadow   0.2s,
+    transform    0.15s,
+    background   0.2s;
+  text-align: center;
+  color: var(--color-text);
+  /* Reset default button styles */
+  font-family: var(--font-sans);
+  outline: none;
+}
+
+.interviewer-card:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.interviewer-card:hover:not(.interviewer-card--selected) {
+  transform: translateY(-3px);
+  border-color: rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.03);
+}
+
+/* ── Per-accent hover tint ── */
+.interviewer-card--cyan:hover    { border-color: rgba(0, 229, 255, 0.35); }
+.interviewer-card--violet:hover  { border-color: rgba(124, 58, 237, 0.45); }
+.interviewer-card--teal:hover    { border-color: rgba(6, 182, 212, 0.45); }
+
+/* ── SELECTED state ── */
+.interviewer-card--selected {
+  transform: translateY(-3px);
+}
+
+/* Cyan selected */
+.interviewer-card--cyan.interviewer-card--selected {
+  border-color: var(--color-glow-cyan);
+  background: rgba(0, 229, 255, 0.06);
+  box-shadow:
+    0 0 0 1px rgba(0, 229, 255, 0.2),
+    0 0 20px rgba(0, 229, 255, 0.2),
+    inset 0 0 20px rgba(0, 229, 255, 0.03);
+}
+/* Violet selected */
+.interviewer-card--violet.interviewer-card--selected {
+  border-color: var(--color-glow-violet);
+  background: rgba(124, 58, 237, 0.08);
+  box-shadow:
+    0 0 0 1px rgba(124, 58, 237, 0.25),
+    0 0 20px rgba(124, 58, 237, 0.25),
+    inset 0 0 20px rgba(124, 58, 237, 0.04);
+}
+/* Teal selected */
+.interviewer-card--teal.interviewer-card--selected {
+  border-color: var(--color-glow-teal);
+  background: rgba(6, 182, 212, 0.07);
+  box-shadow:
+    0 0 0 1px rgba(6, 182, 212, 0.22),
+    0 0 20px rgba(6, 182, 212, 0.22),
+    inset 0 0 20px rgba(6, 182, 212, 0.03);
+}
+
+/* ── Avatar image wrapper ── */
+.interviewer-card__img-wrap {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  overflow: visible;         /* halo bleeds outside */
+}
+
+.interviewer-card__img {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  border: 2px solid var(--color-border);
+  transition: border-color 0.2s;
+  position: relative;
+  z-index: 1;
+}
+
+/* Update image border when card is selected */
+.interviewer-card--cyan.interviewer-card--selected    .interviewer-card__img { border-color: var(--color-glow-cyan); }
+.interviewer-card--violet.interviewer-card--selected  .interviewer-card__img { border-color: var(--color-glow-violet); }
+.interviewer-card--teal.interviewer-card--selected    .interviewer-card__img { border-color: var(--color-glow-teal); }
+
+/* ── Glow halo (pulsing ring behind avatar) ── */
+.interviewer-card__halo {
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.25s;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Make each accent colour's halo correct */
+.interviewer-card--cyan   .interviewer-card__halo { background: radial-gradient(ellipse, rgba(0,229,255,0.22) 0%, transparent 70%); }
+.interviewer-card--violet .interviewer-card__halo { background: radial-gradient(ellipse, rgba(124,58,237,0.28) 0%, transparent 70%); }
+.interviewer-card--teal   .interviewer-card__halo { background: radial-gradient(ellipse, rgba(6,182,212,0.24) 0%, transparent 70%); }
+
+.interviewer-card--selected .interviewer-card__halo {
+  opacity: 1;
+  animation: haloPulse 2.2s ease-in-out infinite;
+}
+
+@keyframes haloPulse {
+  0%, 100% { transform: scale(1);    opacity: 0.8; }
+  50%       { transform: scale(1.12); opacity: 1;   }
+}
+
+/* ── Card labels ── */
+.interviewer-card__name {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-top: 4px;
+  letter-spacing: -0.01em;
+}
+
+.interviewer-card__tag {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-dim);
+  transition: color 0.2s;
+}
+.interviewer-card--cyan.interviewer-card--selected   .interviewer-card__tag { color: var(--color-glow-cyan); }
+.interviewer-card--violet.interviewer-card--selected .interviewer-card__tag { color: #a78bfa; }
+.interviewer-card--teal.interviewer-card--selected   .interviewer-card__tag { color: var(--color-glow-teal); }
+
+/* ── Check badge ── */
+.interviewer-card__check {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+}
+.interviewer-card--cyan.interviewer-card--selected   .interviewer-card__check { background: var(--color-glow-cyan);   color: #060d1f; }
+.interviewer-card--violet.interviewer-card--selected .interviewer-card__check { background: var(--color-glow-violet); color: #fff; }
+.interviewer-card--teal.interviewer-card--selected   .interviewer-card__check { background: var(--color-glow-teal);   color: #060d1f; }
+
+/* ─────────────────────────────────────────────────────────
+   Form footer — summary chips + submit
+───────────────────────────────────────────────────────── */
+.setup-form__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  padding: var(--space-lg) var(--space-xl);
+  background: rgba(0, 0, 0, 0.15);
   border-top: 1px solid var(--color-border);
 }
 
+/* Live summary chips */
+.setup-form__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.summary-chip {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 100px;
+  padding: 4px 12px;
+}
+.summary-chip strong {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+/* Submit button size */
 .btn-lg {
-  padding: 12px 32px;
-  font-size: 1rem;
+  padding: 12px 28px;
+  font-size: 0.95rem;
+  gap: 8px;
 }
