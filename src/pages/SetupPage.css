@@ -1,0 +1,45 @@
+/* =========================================================
+   SetupPage.css
+   ========================================================= */
+
+.setup-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+}
+
+/* ── Header ── */
+.setup-page__header h1 {
+  margin-bottom: var(--space-sm);
+}
+
+/* ── Form card ── */
+.setup-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+/* Error styles */
+.form-input--error {
+  border-color: var(--color-danger) !important;
+  box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.12);
+}
+.form-error {
+  font-size: 0.8rem;
+  color: var(--color-danger);
+  margin-top: 2px;
+}
+
+/* Submit row */
+.setup-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--color-border);
+}
+
+.btn-lg {
+  padding: 12px 32px;
+  font-size: 1rem;
+}

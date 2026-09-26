@@ -1,0 +1,78 @@
+/* =========================================================
+   TranscriptPanel.css
+   ========================================================= */
+
+.transcript {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+/* Empty state */
+.transcript--empty {
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+}
+.transcript__empty-hint {
+  color: var(--color-text-dim);
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+/* ── Turn wrappers ── */
+.transcript__turn {
+  display: flex;
+  flex-direction: column;
+  max-width: 78%;
+}
+.transcript__turn--mentor {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+.transcript__turn--user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+/* ── Speaker label ── */
+.transcript__speaker {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-dim);
+  margin-bottom: 4px;
+}
+
+/* ── Bubble ── */
+.transcript__bubble {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+/* Mentor — cool cyan tint */
+.transcript__turn--mentor .transcript__bubble {
+  background: rgba(0, 229, 255, 0.07);
+  border: 1px solid rgba(0, 229, 255, 0.18);
+  color: var(--color-text);
+  border-bottom-left-radius: var(--radius-sm);
+}
+
+/* User — violet tint */
+.transcript__turn--user .transcript__bubble {
+  background: rgba(124, 58, 237, 0.12);
+  border: 1px solid rgba(124, 58, 237, 0.25);
+  color: var(--color-text);
+  border-bottom-right-radius: var(--radius-sm);
+}
