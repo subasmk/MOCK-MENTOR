@@ -87,6 +87,36 @@
   letter-spacing: 0.08em;
 }
 
+/* TTS voice output badge */
+.iv-tts-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--color-text-dim);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--color-border);
+  border-radius: 100px;
+  padding: 3px 8px;
+  transition: color 0.2s, border-color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+
+/* Active — interviewer is actually speaking */
+.iv-tts-badge--active {
+  color: var(--color-glow-teal);
+  background: rgba(6, 182, 212, 0.08);
+  border-color: rgba(6, 182, 212, 0.3);
+  box-shadow: 0 0 8px rgba(6, 182, 212, 0.2);
+  animation: ttsPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes ttsPulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.65; }
+}
+
 /* LIVE badge */
 .iv-live-badge {
   display: flex;

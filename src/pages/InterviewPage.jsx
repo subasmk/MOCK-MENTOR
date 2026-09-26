@@ -41,9 +41,10 @@ import React, {
   useState,
   useCallback,
 } from 'react';
-import { useNavigate }   from 'react-router-dom';
-import { useMockMentor } from '../context/MockMentorContext';
-import { askGemini }     from '../services/gemini';
+import { useNavigate }                          from 'react-router-dom';
+import { useMockMentor }                        from '../context/MockMentorContext';
+import { askGemini }                            from '../services/gemini';
+import { speakText, cancelSpeech, TTS_SUPPORTED } from '../services/tts';
 import './InterviewPage.css';
 
 /* ─────────────────────────────────────────────────────────
@@ -331,20 +332,27 @@ export default function InterviewPage() {
       setSubtitle(reply);
       setInterimText('');
 
-      /* "Speaking" animation duration proportional to reply length */
-      const dur = Math.min(5000, Math.max(2000, reply.length * 45));
-      setIsSpeaking(true);
-      setTimeout(() => setIsSpeaking(false), dur);
-
-      /* Interview complete? */
+      /* Interview complete? (check before speaking so isDone is set first) */
       const doneWords = [
         'interview is complete', 'interview is now complete',
         'that concludes', 'that wraps up', 'we have covered all',
         'all 6 questions', 'all six questions',
       ];
-      if (doneWords.some((p) => reply.toLowerCase().includes(p))) {
-        setIsDone(true);
-      }
+      const sessionEnded = doneWords.some((p) => reply.toLowerCase().includes(p));
+      if (sessionEnded) setIsDone(true);
+
+      /* ── Speak the reply out loud ──────────────────────
+         isSpeaking stays true until the utterance fires onEnd.
+         That onEnd event is also what triggers the STT auto-start
+         (via the isSpeaking useEffect below), so the timing is exact.
+      ─────────────────────────────────────────────────── */
+      setIsSpeaking(true);
+      speakText({
+        text:     reply,
+        avatarId: avatar,                   // 'male' | 'female' | 'robot'
+        onEnd:    () => setIsSpeaking(false),
+        onError:  () => setIsSpeaking(false),
+      });
 
     } catch (err) {
       setApiError(err.message || 'Gemini request failed.');
@@ -352,7 +360,7 @@ export default function InterviewPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [resumeText, role, addTurn]);
+  }, [resumeText, role, avatar, addTurn]);
 
   /* Keep the stable ref current */
   useEffect(() => { sendToGeminiRef.current = sendToGemini; }, [sendToGemini]);
@@ -391,6 +399,7 @@ export default function InterviewPage() {
       clearInterval(timerRef.current);
       stopWebcam();
       stopListening('unmount');
+      cancelSpeech();               // stop TTS if component unmounts mid-sentence
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -435,6 +444,7 @@ export default function InterviewPage() {
   ───────────────────────────────────────────────────── */
   function handleEndSession() {
     clearInterval(timerRef.current);
+    cancelSpeech();               // cut off any ongoing TTS immediately
     stopListening('end');
     stopWebcam();
     clearTranscript();
@@ -479,6 +489,19 @@ export default function InterviewPage() {
         </div>
         <div className="iv-hud__right">
           <span className="iv-timer" aria-label="Session duration">{formatTime(elapsed)}</span>
+          {/* Voice output indicator — shown only when TTS is supported */}
+          {TTS_SUPPORTED && (
+            <span
+              className={`iv-tts-badge${isSpeaking ? ' iv-tts-badge--active' : ''}`}
+              aria-label={isSpeaking ? 'Voice output active' : 'Voice output ready'}
+              title="Voice output"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+              </svg>
+              {isSpeaking ? 'SPEAKING' : 'VOICE'}
+            </span>
+          )}
           <span className="iv-live-badge">
             <span className="iv-live-badge__dot" aria-hidden="true" />
             LIVE
