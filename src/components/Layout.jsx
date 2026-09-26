@@ -1,9 +1,11 @@
 /**
  * Layout.jsx
  *
- * Persistent shell component that wraps every page.
- * Renders the top navigation bar and the page content slot.
- * Uses CSS custom properties from global.css for all colours.
+ * Persistent shell that wraps every page.
+ *
+ * Special case: the /interview route is a full-viewport immersive call UI.
+ * When on that route the navbar and container padding are suppressed so the
+ * InterviewPage can own the entire screen via `position: fixed; inset: 0`.
  */
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
@@ -12,13 +14,22 @@ import './Layout.css';
 export default function Layout({ children }) {
   const { pathname } = useLocation();
 
-  /** Helper — returns active class when route matches */
+  /** True when the interview call screen is active */
+  const isCallScreen = pathname === '/interview';
+
+  /** Returns the active class for a nav link */
   const navClass = (path) =>
     `nav-link${pathname === path ? ' nav-link--active' : ''}`;
 
+  /* ── Full-screen call mode: render children with no chrome ── */
+  if (isCallScreen) {
+    return <>{children}</>;
+  }
+
+  /* ── Normal mode: navbar + padded container ── */
   return (
     <div className="layout">
-      {/* ── Top navigation bar ── */}
+      {/* Top navigation bar */}
       <header className="navbar">
         <div className="container navbar__inner">
           {/* Brand wordmark */}
@@ -29,13 +40,13 @@ export default function Layout({ children }) {
 
           {/* Route links */}
           <nav className="navbar__nav" aria-label="Primary navigation">
-            <Link to="/setup"      className={navClass('/setup')}>Setup</Link>
-            <Link to="/interview"  className={navClass('/interview')}>Interview</Link>
+            <Link to="/setup"     className={navClass('/setup')}>Setup</Link>
+            <Link to="/interview" className={navClass('/interview')}>Interview</Link>
           </nav>
         </div>
       </header>
 
-      {/* ── Page content ── */}
+      {/* Page content */}
       <main className="layout__main">
         <div className="container">
           {children}
