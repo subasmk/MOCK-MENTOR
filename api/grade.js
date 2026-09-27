@@ -119,7 +119,7 @@ export default async function handler(req, res) {
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         generationConfig: {
           temperature:     0.3,   // low temp → consistent structured output
-          maxOutputTokens: 1024,
+          maxOutputTokens: 4096,
           topP:            0.85,
           responseMimeType: 'application/json',
         },

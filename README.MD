@@ -1,81 +1,49 @@
 # MockMentor
 
-> AI-powered mock interview coach — dark navy holographic edition.
+**An AI HR interviewer that practices with you from your own resume — and tells you exactly what to fix before the real interview.**
 
-## Quick start
+MockMentor feels like a one-on-one video call with HR. It asks questions based on your resume and target role, listens to your answers, watches your confidence through the webcam, and ends with a scored report: answer ratings, communication evaluation, speech analysis, and personalized what-to-improve tips.
+
+Built for students who blank out in interviews. Practice until the fear is gone.
+
+## Features
+
+- **Resume-based interviews** — paste your resume, pick a role (SDE, Data Analyst, Marketing, HR, Product), and Gemini asks 6 tailored questions with real follow-ups
+- **Pick your interviewer** — male, female, or robot avatar, each with its own voice, subtitles, and lip-sync animation
+- **Voice or typed answers** — speak naturally (Web Speech API) or type; the full transcript is saved
+- **Live confidence tracking** — face-api.js reads your expressions and eye contact through the webcam while you answer
+- **Scored report** — per-answer ratings, communication evaluation (filler words, pace, clarity), speech analysis, and concrete tips on what to improve
+
+## Meet your interviewers
+
+<p align="center">
+  <img src="public/avatars/interviewer-male.png" width="180" alt="Male interviewer"/>
+  <img src="public/avatars/interviewer-female.png" width="180" alt="Female interviewer"/>
+  <img src="public/avatars/interviewer-robot.png" width="180" alt="Robot interviewer"/>
+</p>
+
+## Tech stack
+
+- **Frontend:** React + Vite
+- **AI:** Gemini 3.5 Flash (question generation, answer grading, communication evaluation)
+- **Vision:** face-api.js pre-trained expression models
+- **Voice:** Web Speech API (speech recognition + speechSynthesis)
+- **Backend:** Vercel serverless API routes (`api/interview.js`, `api/grade.js`, `api/evaluate.js`) — the Gemini key stays server-side in a `GEMINI_KEY` env var and never ships to the browser
+
+## Run it locally
 
 ```bash
 npm install
-npm run dev       # http://localhost:5173
+echo "GEMINI_KEY=your-gemini-api-key" > .env
+npx vercel dev        # serves the app + /api routes together
 ```
 
-## Build for production
+(Or `npm run dev` for the UI alone — point the `/api` proxy at any local function runner on port 3001.)
 
-```bash
-npm run build     # output → dist/
-npm run preview   # preview the production build locally
-```
+## Deploy
 
----
+Deploy to Vercel and set the `GEMINI_KEY` environment variable in the project settings. No other config needed.
 
-## Project structure
+## Built with IBM Bob
 
-```
-src/
-├── main.jsx                    # App entry point, providers, router
-├── App.jsx                     # Route definitions (/setup, /interview)
-├── context/
-│   └── MockMentorContext.jsx   # Shared state: resumeText, role, avatar, transcript
-├── pages/
-│   ├── SetupPage.jsx           # Step 1 — configure session
-│   ├── SetupPage.css
-│   ├── InterviewPage.jsx       # Step 2 — live mock interview
-│   └── InterviewPage.css
-├── components/
-│   ├── Layout.jsx              # Sticky navbar + page shell
-│   ├── Layout.css
-│   ├── AvatarPicker.jsx        # Interviewer avatar selection grid
-│   ├── AvatarPicker.css
-│   ├── TranscriptPanel.jsx     # Chat-bubble transcript viewer
-│   └── TranscriptPanel.css
-└── styles/
-    └── global.css              # CSS variables, reset, theme tokens
-
-public/
-├── favicon.svg
-└── avatars/
-    ├── README.md               # How to add new avatar images
-    ├── mentor-aria.png         # (add your own images here)
-    ├── mentor-marcus.png
-    ├── mentor-priya.png
-    └── mentor-leo.png
-```
-
-## Shared context
-
-`MockMentorContext` exposes:
-
-| Value             | Type                                  | Description                        |
-|-------------------|---------------------------------------|------------------------------------|
-| `resumeText`      | `string`                              | User's pasted résumé               |
-| `role`            | `string`                              | Target job role                    |
-| `avatar`          | `string`                              | Chosen avatar filename             |
-| `transcript`      | `{ id, speaker, text }[]`             | Full interview turn history        |
-| `setResumeText`   | `(s: string) => void`                 |                                    |
-| `setRole`         | `(s: string) => void`                 |                                    |
-| `setAvatar`       | `(s: string) => void`                 |                                    |
-| `addTurn`         | `(speaker, text) => void`            | Append one turn to transcript      |
-| `clearTranscript` | `() => void`                          | Reset transcript for new session   |
-
-## Adding avatar images
-
-Drop square PNG/JPG files into `public/avatars/` and add an entry to
-the `MENTORS` array in [`src/components/AvatarPicker.jsx`](src/components/AvatarPicker.jsx).
-The UI falls back to coloured initials if an image is missing.
-
-## Wiring up a real AI backend
-
-In [`src/pages/InterviewPage.jsx`](src/pages/InterviewPage.jsx), find the
-`// TODO: replace with real AI/backend call` comment inside `handleSubmit`.
-Replace the `setTimeout` block with a `fetch`/`axios` call to your backend,
-passing `resumeText`, `role`, and `transcript` as context.
+MockMentor was built with IBM Bob IDE agents for the **IBM Bob 2.0 Hackathon**. Our exported Bob agent session reports — task-by-task markdown and screenshots — are in [`bob_sessions/`](bob_sessions/).
