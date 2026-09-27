@@ -1072,3 +1072,22 @@
   transform: translate(-50%, -50%) scaleY(1);
   background: rgba(6, 4, 14, 0.82);
 }
+
+/* ── 3D animated avatar (TalkingHead) ── */
+.iv-avatar-3d {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  z-index: 1;
+  border: 3px solid rgba(255,255,255,0.08);
+  /* Dark stage behind the model while it streams in */
+  background:
+    radial-gradient(circle at 50% 30%, rgba(0,229,255,0.10), transparent 65%),
+    linear-gradient(180deg, #10131f 0%, #0a0c14 100%);
+}
+.iv-avatar-3d canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
