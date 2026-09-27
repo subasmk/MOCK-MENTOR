@@ -1,95 +1,273 @@
 /**
- * ReportPage.jsx
+ * ReportPage.jsx  —  /report
  *
- * Post-interview transcript and summary.
- * Reads all session data from MockMentorContext — nothing is re-fetched.
+ * Futuristic game-results screen that surfaces after a monitoring/interview session.
  *
- * Layout:
- *   Header  — interviewer avatar · role · session stats (turns, duration)
- *   Body    — numbered Q&A pairs extracted from the transcript
- *             (mentor turns = questions/feedback, user turns = answers)
- *   Footer  — Start New Interview CTA
+ * Data sources (both optional — page degrades gracefully if either is absent):
+ *   A. MockMentorContext  — interview transcript + role + avatar
+ *   B. localStorage       — latest vision session (mm_vision_sessions)
  *
- * If the transcript is empty (user landed here directly without an interview)
- * a friendly redirect prompt is shown.
- *
- * The transcript is NOT cleared here. It remains in context so the user can
- * revisit the page within the same browser session.
- * clearTranscript() is called by SetupPage when a new session begins.
+ * Sections (top → bottom):
+ *   1. Hero banner       — SESSION COMPLETE, duration, date
+ *   2. Transcript panel  — scrollable holographic Q&A
+ *   3. Score rings       — Confidence · Eye Contact · Non-Fearful · Face Presence
+ *   4. Expression bars   — horizontal breakdown of the four categories
+ *   5. Session stats     — compact data grid
+ *   6. Footer nav        — Start New Session · Back to Dashboard
  */
-import React, { useMemo } from 'react';
-import { useNavigate }    from 'react-router-dom';
-import { useMockMentor }  from '../context/MockMentorContext';
+
+import React, { useMemo, useEffect, useRef } from 'react';
+import { useNavigate }        from 'react-router-dom';
+import { useMockMentor }      from '../context/MockMentorContext';
+import { getSavedSessions }   from '../tracking/sessionManager';
 import './ReportPage.css';
 
 /* ─────────────────────────────────────────────────────────
-   Interviewer catalogue (mirrors SetupPage / InterviewPage)
+   Constants
 ───────────────────────────────────────────────────────── */
 const INTERVIEWER_MAP = {
-  male:   { name: 'Alex Turner', tag: 'Technical Lead',  src: '/avatars/interviewer-male.svg'   },
-  female: { name: 'Priya Nair',  tag: 'Hiring Manager',  src: '/avatars/interviewer-female.svg' },
-  robot:  { name: 'ARIA-7',      tag: 'AI Evaluator',    src: '/avatars/interviewer-robot.svg'  },
+  male:   { name: 'Alex Turner', tag: 'Technical Lead' },
+  female: { name: 'Priya Nair',  tag: 'Hiring Manager' },
+  robot:  { name: 'ARIA-7',      tag: 'AI Evaluator'   },
 };
 
 /* ─────────────────────────────────────────────────────────
-   Helpers
+   Pure helpers
 ───────────────────────────────────────────────────────── */
-
-/** Format an ISO timestamp as HH:MM:SS */
 function fmtTime(iso) {
   if (!iso) return '—';
-  const d = new Date(iso);
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  return new Date(iso).toLocaleTimeString([], {
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  });
 }
 
-/** Elapsed time between two ISO timestamps, returned as "Xm Ys" */
-function fmtElapsed(startIso, endIso) {
-  if (!startIso || !endIso) return '—';
-  const ms = new Date(endIso) - new Date(startIso);
-  if (ms < 0) return '—';
-  const totalSecs = Math.round(ms / 1000);
-  const m = Math.floor(totalSecs / 60);
-  const s = totalSecs % 60;
-  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+function fmtDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString([], {
+    weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+  });
 }
 
-/** Pair mentor + user turns into Q&A objects. */
-function pairTurns(transcript) {
-  const pairs = [];
-  let i = 0;
+function fmtSecs(totalSecs) {
+  const s   = Math.floor(totalSecs ?? 0);
+  const m   = Math.floor(s / 60);
+  const rem = String(s % 60).padStart(2, '0');
+  return m > 0 ? `${m}m ${rem}s` : `${s}s`;
+}
 
-  while (i < transcript.length) {
-    const turn = transcript[i];
+function fmtMM(totalSecs) {
+  const s = Math.floor(totalSecs ?? 0);
+  const m = Math.floor(s / 60);
+  return `${String(m).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+}
 
-    if (turn.speaker === 'mentor') {
-      /* Collect consecutive mentor turns as one question block */
-      let mentorText = turn.text;
-      let mentorTs   = turn.timestamp;
-      let j = i + 1;
+function computeConfidence(eyeContactPct, expressionCounts) {
+  const { neutral = 0, happy = 0, fearful = 0, surprised = 0 } = expressionCounts ?? {};
+  const total = neutral + happy + fearful + surprised;
+  if (total === 0) return null;
+  const eyeScore        = Math.min(100, Math.max(0, eyeContactPct ?? 0));
+  const nonFearfulPct   = ((neutral + happy + surprised) / total) * 100;
+  const overall         = eyeScore * 0.5 + nonFearfulPct * 0.5;
+  return {
+    overall:         +Math.min(100, Math.max(0, overall)).toFixed(1),
+    eyeScore:        +eyeScore.toFixed(1),
+    nonFearfulScore: +nonFearfulPct.toFixed(1),
+  };
+}
 
-      /* Next turn might be user answer */
-      const answer = transcript[j]?.speaker === 'user' ? transcript[j] : null;
-
-      pairs.push({
-        qNum:        pairs.length + 1,
-        question:    mentorText,
-        questionTs:  mentorTs,
-        answer:      answer?.text ?? null,
-        answerTs:    answer?.timestamp ?? null,
-      });
-
-      i = answer ? j + 1 : j;
-    } else {
-      /* Orphaned user turn (shouldn't happen, but skip gracefully) */
-      i++;
-    }
-  }
-
-  return pairs;
+function facePresencePct(stats) {
+  const { expressionCounts, noFaceCount } = stats ?? {};
+  const { neutral = 0, happy = 0, fearful = 0, surprised = 0 } = expressionCounts ?? {};
+  const faceCount = neutral + happy + fearful + surprised;
+  const total     = faceCount + (noFaceCount ?? 0);
+  if (total === 0) return null;
+  return +((faceCount / total) * 100).toFixed(1);
 }
 
 /* ─────────────────────────────────────────────────────────
-   Component
+   ScoreRing — animated SVG circular progress indicator
+───────────────────────────────────────────────────────── */
+function ScoreRing({ pct, label, sublabel, color = 'var(--color-accent)', size = 160 }) {
+  const radius        = (size - 24) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const filled        = pct !== null ? Math.min(100, Math.max(0, pct)) : 0;
+  const offset        = circumference - (filled / 100) * circumference;
+
+  return (
+    <div
+      className="rp2-ring"
+      style={{ '--ring-color': color, width: size, height: size }}
+      aria-label={`${label}: ${pct !== null ? Math.round(pct) + '%' : 'no data'}`}
+    >
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        aria-hidden="true"
+        style={{ transform: 'rotate(-90deg)' }}
+      >
+        {/* Track ring */}
+        <circle
+          cx={size / 2} cy={size / 2} r={radius}
+          fill="none"
+          stroke="rgba(255,255,255,0.05)"
+          strokeWidth="12"
+        />
+        {/* Glow duplicate (blurred, slightly wider) */}
+        <circle
+          className="rp2-ring__glow"
+          cx={size / 2} cy={size / 2} r={radius}
+          fill="none"
+          stroke={color}
+          strokeWidth="14"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          style={{
+            '--circ':   circumference,
+            '--offset': offset,
+            strokeDashoffset: offset,
+            opacity: 0.25,
+            filter: 'blur(4px)',
+          }}
+        />
+        {/* Active arc */}
+        <circle
+          className="rp2-ring__arc"
+          cx={size / 2} cy={size / 2} r={radius}
+          fill="none"
+          stroke={color}
+          strokeWidth="12"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          style={{
+            '--circ':   circumference,
+            '--offset': offset,
+            strokeDashoffset: offset,
+          }}
+        />
+      </svg>
+
+      {/* Centre text */}
+      <div className="rp2-ring__center">
+        <span className="rp2-ring__pct">
+          {pct !== null ? `${Math.round(pct)}%` : '--'}
+        </span>
+        <span className="rp2-ring__label">{label}</span>
+        {sublabel && <span className="rp2-ring__sub">{sublabel}</span>}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
+   StatRow — single label / value pair
+───────────────────────────────────────────────────────── */
+function StatRow({ label, value }) {
+  return (
+    <div className="rp2-stat-row">
+      <span className="rp2-stat-row__label">{label}</span>
+      <span className="rp2-stat-row__value">{value}</span>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
+   ExpressionBars — horizontal bar breakdown
+───────────────────────────────────────────────────────── */
+function ExpressionBars({ counts }) {
+  const items = [
+    { key: 'neutral',   label: 'Neutral',   color: 'var(--color-text-muted)' },
+    { key: 'happy',     label: 'Happy',     color: 'var(--color-success)' },
+    { key: 'surprised', label: 'Surprised', color: '#a78bfa' },
+    { key: 'fearful',   label: 'Fearful',   color: 'var(--color-danger)' },
+  ];
+  const max = Math.max(1, ...items.map(({ key }) => counts[key] ?? 0));
+
+  return (
+    <div className="rp2-expr-bars">
+      {items.map(({ key, label, color }) => {
+        const count = counts[key] ?? 0;
+        const pct   = (count / max) * 100;
+        return (
+          <div key={key} className="rp2-expr-bar-row">
+            <span className="rp2-expr-bar-row__label">{label}</span>
+            <div className="rp2-expr-bar-row__track">
+              <div
+                className="rp2-expr-bar-row__fill"
+                style={{ '--bar-pct': `${pct}%`, '--bar-color': color }}
+              />
+            </div>
+            <span className="rp2-expr-bar-row__count">{count}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
+   TranscriptPanel — scrollable holographic Q&A
+───────────────────────────────────────────────────────── */
+function TranscriptPanel({ transcript, interviewer }) {
+  if (!transcript || transcript.length === 0) {
+    return (
+      <div className="rp2-transcript rp2-transcript--empty">
+        <div className="rp2-transcript__empty-inner">
+          <span className="rp2-transcript__empty-icon" aria-hidden="true">◎</span>
+          <p className="rp2-transcript__empty-msg">No transcript recorded for this session.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rp2-transcript" role="log" aria-label="Session transcript">
+      {/* Scanline fade at top */}
+      <div className="rp2-transcript__fade-top" aria-hidden="true" />
+      <div className="rp2-transcript__inner">
+        {transcript.map((turn) => {
+          const isMentor = turn.speaker === 'mentor';
+          return (
+            <div
+              key={turn.id ?? turn.timestamp}
+              className={`rp2-turn rp2-turn--${isMentor ? 'ai' : 'user'}`}
+            >
+              <div className="rp2-turn__meta">
+                <span className="rp2-turn__ts">{fmtTime(turn.timestamp)}</span>
+                <span className="rp2-turn__speaker">
+                  {isMentor ? (interviewer?.name ?? 'AI') : 'YOU'}
+                </span>
+              </div>
+              <p className="rp2-turn__text">{turn.text}</p>
+            </div>
+          );
+        })}
+      </div>
+      {/* Scanline fade at bottom */}
+      <div className="rp2-transcript__fade-bottom" aria-hidden="true" />
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
+   SectionHead — labelled section header
+───────────────────────────────────────────────────────── */
+function SectionHead({ icon, title, badge }) {
+  return (
+    <div className="rp2-section__head">
+      <h2 className="rp2-section__title">
+        <span className="rp2-section__title-icon" aria-hidden="true">{icon}</span>
+        {title}
+      </h2>
+      {badge != null && (
+        <span className="rp2-section__badge">{badge}</span>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
+   Main page component
 ───────────────────────────────────────────────────────── */
 export default function ReportPage() {
   const navigate = useNavigate();
@@ -97,28 +275,83 @@ export default function ReportPage() {
 
   const interviewer = INTERVIEWER_MAP[avatar] ?? INTERVIEWER_MAP.male;
 
-  /* ── Guard: no transcript → prompt to set up ── */
-  if (transcript.length === 0) {
+  /* Load the latest saved vision session from localStorage */
+  const visionSession = useMemo(() => {
+    const sessions = getSavedSessions();
+    return sessions.length > 0 ? sessions[sessions.length - 1] : null;
+  }, []);
+
+  const vStats = visionSession?.stats ?? null;
+
+  /* Derived metrics */
+  const confidence = useMemo(() => {
+    if (!vStats) return null;
+    return computeConfidence(vStats.eyeContactPct, vStats.expressionCounts);
+  }, [vStats]);
+
+  const facePct = useMemo(() => (vStats ? facePresencePct(vStats) : null), [vStats]);
+
+  /* Session timing */
+  const sessionDate = visionSession?.startedAt ?? transcript?.[0]?.timestamp ?? null;
+  const sessionDuration = vStats
+    ? fmtMM(vStats.sessionDuration)
+    : transcript.length >= 2
+      ? fmtMM(
+          (new Date(transcript[transcript.length - 1]?.timestamp) -
+            new Date(transcript[0]?.timestamp)) /
+            1000,
+        )
+      : null;
+
+  /* Expression counts */
+  const { neutral = 0, happy = 0, fearful = 0, surprised = 0 } =
+    vStats?.expressionCounts ?? {};
+  const totalExpressions = neutral + happy + fearful + surprised;
+  const totalSamples     = totalExpressions + (vStats?.noFaceCount ?? 0);
+
+  /* Gate flags */
+  const hasVision     = vStats !== null;
+  const hasTranscript = transcript && transcript.length > 0;
+  const hasAnything   = hasVision || hasTranscript;
+
+  /* ── Entrance animation trigger ── */
+  const rootRef = useRef(null);
+  useEffect(() => {
+    // Trigger CSS animation classes after a micro-tick so transitions fire
+    const t = setTimeout(() => {
+      rootRef.current?.classList.add('rp2-root--ready');
+    }, 50);
+    return () => clearTimeout(t);
+  }, []);
+
+  /* ── Gate: nothing to show ── */
+  if (!hasAnything) {
     return (
-      <div className="rp-gate">
-        <p className="rp-gate__msg">No interview found. Start a session first.</p>
-        <button className="btn btn-primary" onClick={() => navigate('/setup')}>
-          Go to Setup
-        </button>
+      <div className="rp2-gate">
+        <div className="rp2-gate__icon" aria-hidden="true">◎</div>
+        <h1 className="rp2-gate__title">No Session Data</h1>
+        <p className="rp2-gate__msg">
+          Complete a vision monitoring session or interview first.
+        </p>
+        <div className="rp2-gate__actions">
+          <button className="btn btn-primary" onClick={() => navigate('/vision')}>
+            Start Vision Session
+          </button>
+          <button className="btn btn-ghost" onClick={() => navigate('/setup')}>
+            Go to Setup
+          </button>
+        </div>
       </div>
     );
   }
 
-  /* ── Derived stats ── */
-  const pairs    = useMemo(() => pairTurns(transcript), [transcript]);
-  const firstTs  = transcript[0]?.timestamp;
-  const lastTs   = transcript[transcript.length - 1]?.timestamp;
-  const duration = fmtElapsed(firstTs, lastTs);
-  const answered = pairs.filter((p) => p.answer !== null).length;
-
-  /* ── Start a new interview ── */
-  function handleNewInterview() {
+  /* ── Handlers ── */
+  function handleNewSession() {
     clearTranscript();
+    navigate('/vision');
+  }
+
+  function handleDashboard() {
     navigate('/setup');
   }
 
@@ -126,143 +359,194 @@ export default function ReportPage() {
      Render
   ───────────────────────────────────────────────────── */
   return (
-    <div className="rp-root">
+    <div className="rp2-root" ref={rootRef}>
 
-      {/* ══════════════════════════════════════════════
-          Header — interviewer info + session stats
-      ══════════════════════════════════════════════ */}
-      <header className="rp-header">
-        <div className="rp-header__inner">
+      {/* ══════════════════════════════════════════════════
+          1. HERO BANNER
+      ══════════════════════════════════════════════════ */}
+      <header className="rp2-hero">
+        <div className="rp2-hero__grid" aria-hidden="true" />
+        <div className="rp2-hero__scan" aria-hidden="true" />
 
-          {/* Interviewer identity */}
-          <div className="rp-interviewer">
-            <div className="rp-interviewer__avatar-wrap">
-              <img
-                src={interviewer.src}
-                alt={interviewer.name}
-                className="rp-interviewer__avatar"
-                draggable={false}
-              />
-            </div>
-            <div className="rp-interviewer__info">
-              <span className="rp-interviewer__name">{interviewer.name}</span>
-              <span className="rp-interviewer__tag">{interviewer.tag}</span>
-            </div>
+        <div className="rp2-hero__inner">
+          <p className="rp2-hero__eyebrow">
+            <span className="rp2-hero__eyebrow-dot" aria-hidden="true" />
+            SESSION COMPLETE
+          </p>
+
+          <h1 className="rp2-hero__title">Communication Report</h1>
+          <p className="rp2-hero__sub">Your session results are ready</p>
+
+          <div className="rp2-hero__meta">
+            {sessionDuration && (
+              <span className="rp2-hero__pill">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/>
+                </svg>
+                {sessionDuration}
+              </span>
+            )}
+            {sessionDate && (
+              <span className="rp2-hero__pill">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M20 3h-1V1h-2v2H7V1H5v2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H4V8h16v13z"/>
+                </svg>
+                {fmtDate(sessionDate)}
+              </span>
+            )}
+            {role && (
+              <span className="rp2-hero__pill rp2-hero__pill--role">
+                {role}
+              </span>
+            )}
           </div>
 
-          {/* Wordmark */}
-          <div className="rp-wordmark" aria-hidden="true">⬡ MockMentor</div>
-
-          {/* Session stats */}
-          <div className="rp-stats">
-            <div className="rp-stat">
-              <span className="rp-stat__label">Role</span>
-              <span className="rp-stat__value">{role || '—'}</span>
-            </div>
-            <div className="rp-stat">
-              <span className="rp-stat__label">Questions</span>
-              <span className="rp-stat__value">{pairs.length}</span>
-            </div>
-            <div className="rp-stat">
-              <span className="rp-stat__label">Answered</span>
-              <span className="rp-stat__value">{answered}</span>
-            </div>
-            <div className="rp-stat">
-              <span className="rp-stat__label">Duration</span>
-              <span className="rp-stat__value">{duration}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Completion badge */}
-        <div className="rp-complete-badge" aria-label="Interview complete">
-          <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-            <path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm3.707-9.293a1 1 0 0 0-1.414-1.414L9 10.586 7.707 9.293a1 1 0 0 0-1.414 1.414l2 2a1 1 0 0 0 1.414 0l4-4z" clipRule="evenodd"/>
-          </svg>
-          Interview Complete
+          <p className="rp2-hero__brand" aria-hidden="true">⬡ MockMentor</p>
         </div>
       </header>
 
-      {/* ══════════════════════════════════════════════
-          Q&A pairs
-      ══════════════════════════════════════════════ */}
-      <main className="rp-main">
-        <div className="rp-main__inner">
+      {/* ══════════════════════════════════════════════════
+          2. TRANSCRIPT
+      ══════════════════════════════════════════════════ */}
+      <section className="rp2-section" aria-labelledby="rp2-transcript-heading">
+        <SectionHead
+          icon="▶"
+          title="Transcript"
+          badge={hasTranscript ? `${transcript.length} turns` : null}
+          id="rp2-transcript-heading"
+        />
+        <TranscriptPanel transcript={transcript} interviewer={interviewer} />
+      </section>
 
-          <h1 className="rp-section-title">Interview Transcript</h1>
+      {/* ══════════════════════════════════════════════════
+          3. SCORE RINGS
+      ══════════════════════════════════════════════════ */}
+      {hasVision && (
+        <section className="rp2-section" aria-labelledby="rp2-scores-heading">
+          <SectionHead icon="◎" title="Session Score" id="rp2-scores-heading" />
 
-          {pairs.length === 0 ? (
-            <p className="rp-empty">No questions recorded.</p>
-          ) : (
-            <ol className="rp-qa-list">
-              {pairs.map((pair) => (
-                <li key={pair.qNum} className="rp-qa-item">
+          <div className="rp2-rings-grid">
+            <div className="rp2-ring-cell">
+              <ScoreRing
+                pct={confidence?.overall ?? null}
+                label="CONFIDENCE"
+                sublabel={
+                  confidence
+                    ? `${confidence.eyeScore}% eye · ${confidence.nonFearfulScore}% expr`
+                    : undefined
+                }
+                color="var(--color-accent)"
+                size={172}
+              />
+            </div>
+            <div className="rp2-ring-cell">
+              <ScoreRing
+                pct={vStats?.eyeContactPct ?? null}
+                label="EYE CONTACT"
+                sublabel={vStats ? fmtSecs(vStats.eyeContactDuration) : undefined}
+                color="var(--color-glow-teal)"
+                size={172}
+              />
+            </div>
+            <div className="rp2-ring-cell">
+              <ScoreRing
+                pct={confidence?.nonFearfulScore ?? null}
+                label="NON-FEARFUL"
+                sublabel={
+                  totalExpressions > 0
+                    ? `${totalExpressions} detections`
+                    : undefined
+                }
+                color="#a78bfa"
+                size={172}
+              />
+            </div>
+            <div className="rp2-ring-cell">
+              <ScoreRing
+                pct={facePct}
+                label="FACE PRESENCE"
+                sublabel={
+                  totalSamples > 0 ? `${totalSamples} samples` : undefined
+                }
+                color="var(--color-success)"
+                size={172}
+              />
+            </div>
+          </div>
+        </section>
+      )}
 
-                  {/* Question */}
-                  <div className="rp-turn rp-turn--mentor">
-                    <div className="rp-turn__meta">
-                      <span className="rp-turn__label rp-turn__label--mentor">
-                        {/* Speaker icon */}
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                          <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
-                        </svg>
-                        {interviewer.name}
-                      </span>
-                      {pair.questionTs && (
-                        <span className="rp-turn__ts">{fmtTime(pair.questionTs)}</span>
-                      )}
-                    </div>
-                    <p className="rp-turn__text">{pair.question}</p>
-                  </div>
+      {/* ══════════════════════════════════════════════════
+          4 & 5. EXPRESSION BREAKDOWN + SESSION DATA
+          Side-by-side on wide screens, stacked on mobile
+      ══════════════════════════════════════════════════ */}
+      {hasVision && (
+        <div className="rp2-lower-row">
 
-                  {/* Answer */}
-                  {pair.answer ? (
-                    <div className="rp-turn rp-turn--user">
-                      <div className="rp-turn__meta">
-                        <span className="rp-turn__label rp-turn__label--user">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                            <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>
-                          </svg>
-                          You
-                        </span>
-                        {pair.answerTs && (
-                          <span className="rp-turn__ts">{fmtTime(pair.answerTs)}</span>
-                        )}
-                      </div>
-                      <p className="rp-turn__text">{pair.answer}</p>
-                    </div>
-                  ) : (
-                    <div className="rp-turn rp-turn--unanswered">
-                      <p className="rp-turn__text rp-turn__text--dim">— Not answered —</p>
-                    </div>
-                  )}
-
-                </li>
-              ))}
-            </ol>
+          {/* Expression Breakdown */}
+          {totalExpressions > 0 && (
+            <section
+              className="rp2-section rp2-section--card"
+              aria-labelledby="rp2-expr-heading"
+            >
+              <SectionHead icon="≡" title="Expression Breakdown" id="rp2-expr-heading" />
+              <ExpressionBars counts={vStats.expressionCounts} />
+            </section>
           )}
-        </div>
-      </main>
 
-      {/* ══════════════════════════════════════════════
-          Footer CTA
-      ══════════════════════════════════════════════ */}
-      <footer className="rp-footer">
-        <p className="rp-footer__hint">
-          Ready to practise again? Start a new session to try a different role or interviewer.
-        </p>
+          {/* Session Data */}
+          <section
+            className="rp2-section rp2-section--card"
+            aria-labelledby="rp2-stats-heading"
+          >
+            <SectionHead icon="▦" title="Session Data" id="rp2-stats-heading" />
+
+            <div className="rp2-stats-grid">
+              <div className="rp2-stats-col">
+                <StatRow label="Duration"     value={fmtSecs(vStats.sessionDuration)} />
+                <StatRow label="Samples"       value={totalSamples} />
+                <StatRow label="Eye Contact"   value={fmtSecs(vStats.eyeContactDuration)} />
+                <StatRow label="Eye Contact %"  value={`${vStats.eyeContactPct}%`} />
+                {confidence && (
+                  <StatRow label="Confidence"  value={`${confidence.overall}%`} />
+                )}
+              </div>
+              <div className="rp2-stats-col">
+                <StatRow label="Neutral"   value={neutral} />
+                <StatRow label="Happy"     value={happy} />
+                <StatRow label="Fearful"   value={fearful} />
+                <StatRow label="Surprised" value={surprised} />
+                <StatRow label="No Face"   value={vStats.noFaceCount} />
+              </div>
+            </div>
+          </section>
+
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════
+          6. FOOTER NAV
+      ══════════════════════════════════════════════════ */}
+      <footer className="rp2-footer">
         <button
           type="button"
-          className="btn btn-primary rp-cta-btn"
-          onClick={handleNewInterview}
+          className="btn btn-primary rp2-footer__btn"
+          onClick={handleNewSession}
         >
-          {/* Refresh icon */}
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M8 5v14l11-7z"/>
           </svg>
-          Start New Interview
+          Start New Session
+        </button>
+        <button
+          type="button"
+          className="btn btn-ghost rp2-footer__btn"
+          onClick={handleDashboard}
+        >
+          Back to Dashboard
         </button>
       </footer>
+
     </div>
   );
 }

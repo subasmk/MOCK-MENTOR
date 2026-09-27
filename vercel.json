@@ -10,6 +10,10 @@
     "api/interview.js": {
       "runtime": "nodejs20.x",
       "maxDuration": 30
+    },
+    "api/grade.js": {
+      "runtime": "nodejs20.x",
+      "maxDuration": 30
     }
   },
 

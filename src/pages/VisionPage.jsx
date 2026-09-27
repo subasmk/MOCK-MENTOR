@@ -359,6 +359,7 @@ const EMPTY_STATS = {
 };
 
 export default function VisionPage() {
+  const navigate      = useNavigate();
   /* ── Refs ──────────────────────────────────────────────── */
   const videoRef      = useRef(null);
   const streamRef     = useRef(null);
@@ -575,6 +576,20 @@ export default function VisionPage() {
               </svg>
               Stop Monitoring
             </button>
+
+            {/* View Report — appears after a session has been stopped */}
+            {!isMonitoring && stats.records.length > 0 && (
+              <button
+                className="btn btn-primary vp-btn-report"
+                onClick={() => navigate('/report')}
+                aria-label="View session report"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14H7v-2h5v2zm5-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+                </svg>
+                View Report
+              </button>
+            )}
           </div>
 
           {/* Live status bar */}

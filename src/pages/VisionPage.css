@@ -222,7 +222,8 @@
   gap: var(--space-sm);
 }
 .vp-btn-start,
-.vp-btn-stop {
+.vp-btn-stop,
+.vp-btn-report {
   flex: 1;
   justify-content: center;
 }
