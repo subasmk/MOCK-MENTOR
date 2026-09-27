@@ -150,6 +150,17 @@ export function pickVoice(avatarId) {
   return voices[0];
 }
 
+/**
+ * Return the configured speech rate for an avatar (used to keep the
+ * 3D avatar's lip-sync timeline in step with the real utterance).
+ *
+ * @param {'male'|'female'|'robot'} avatarId
+ * @returns {number}
+ */
+export function ttsSpeechRate(avatarId) {
+  return (PROSODY[avatarId] ?? PROSODY.male).rate;
+}
+
 /* ─────────────────────────────────────────────────────────
    Public API
 ───────────────────────────────────────────────────────── */
