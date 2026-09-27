@@ -145,7 +145,11 @@ export default async function handler(req, res) {
           reasoning: { enabled: false },
         }),
       });
-      if (upstreamRes.ok || (upstreamRes.status !== 429 && upstreamRes.status !== 503)) break;
+      if (upstreamRes.ok) {
+        /* A free provider can return 200 with empty content; treat it as a miss. */
+        const peek = await upstreamRes.clone().json().catch(() => null);
+        if (peek?.choices?.[0]?.message?.content?.trim()) break;
+      } else if (upstreamRes.status !== 429 && upstreamRes.status !== 503) break;
     }
   } catch (networkErr) {
     return res.status(500).json({
