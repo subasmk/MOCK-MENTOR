@@ -911,3 +911,157 @@
     grid-template-columns: auto 1fr;
   }
 }
+
+/* ═══════════════════════════════════════════════════════
+   SPEECH ANALYSIS SECTION
+═══════════════════════════════════════════════════════ */
+
+/* Two-column grid: WPM card left, fillers card right */
+.rp2-speech-grid {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: var(--space-md);
+}
+@media (max-width: 620px) {
+  .rp2-speech-grid { grid-template-columns: 1fr; }
+}
+
+/* Shared card shell */
+.rp2-speech-card {
+  background: rgba(13, 27, 56, 0.50);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.22),
+              inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+/* Card eyebrow label */
+.rp2-speech-card__eyebrow {
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+/* Header row inside filler card (eyebrow + total count) */
+.rp2-speech-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+/* ── WPM display ── */
+.rp2-speech-wpm {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-top: 4px;
+}
+.rp2-speech-wpm__num {
+  font-size: 3.2rem;
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+  filter: drop-shadow(0 0 14px color-mix(in srgb, currentColor 40%, transparent));
+}
+.rp2-speech-wpm__unit {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.rp2-speech-wpm__label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+.rp2-speech-wpm__hint {
+  font-size: 0.68rem;
+  color: var(--color-text-dim);
+  margin: 0;
+  margin-top: auto;
+  padding-top: var(--space-sm);
+  border-top: 1px solid rgba(26, 47, 90, 0.6);
+}
+
+/* ── Filler total badge ── */
+.rp2-speech-filler-total {
+  font-size: 1.5rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  filter: drop-shadow(0 0 8px color-mix(in srgb, currentColor 35%, transparent));
+}
+.rp2-speech-filler-total__rate {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin-left: 3px;
+  letter-spacing: 0;
+}
+
+/* ── Filler bars ── */
+.rp2-filler-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+.rp2-filler-bar-row {
+  display: grid;
+  grid-template-columns: 68px 1fr 28px;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.rp2-filler-bar-row__label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+.rp2-filler-bar-row__track {
+  height: 7px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.045);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+.rp2-filler-bar-row__fill {
+  height: 100%;
+  border-radius: 99px;
+  background: var(--bar-color, var(--color-border));
+  width: var(--bar-pct, 0%);
+  animation: rp2-bar-grow 0.9s cubic-bezier(0.35, 0, 0.15, 1) both;
+  animation-delay: 0.2s;
+  box-shadow: 0 0 5px color-mix(in srgb, var(--bar-color, transparent) 35%, transparent);
+}
+.rp2-filler-bar-row__count {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  font-family: var(--font-mono);
+}
+
+.rp2-speech-filler-hint {
+  font-size: 0.68rem;
+  color: var(--color-text-dim);
+  margin: 0;
+  margin-top: auto;
+  padding-top: var(--space-sm);
+  border-top: 1px solid rgba(26, 47, 90, 0.6);
+}

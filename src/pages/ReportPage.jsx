@@ -11,10 +11,11 @@
  *   1. Hero banner        — SESSION COMPLETE, duration, date
  *   2. Transcript panel   — scrollable holographic Q&A
  *   3. Answer Feedback    — per-answer AI ratings (1-10) + improvement tips
- *   4. Score rings        — Confidence · Eye Contact · Non-Fearful · Face Presence
- *   5. Expression bars    — horizontal breakdown of the four categories
- *   6. Session stats      — compact data grid
- *   7. Footer nav         — Start New Session · Back to Dashboard
+ *   4. Speech Analysis    — filler-word counts + speaking pace (WPM)
+ *   5. Score rings        — Confidence · Eye Contact · Non-Fearful · Face Presence
+ *   6. Expression bars    — horizontal breakdown of the four categories
+ *   7. Session stats      — compact data grid
+ *   8. Footer nav         — Start New Session · Back to Dashboard
  */
 
 import React, { useMemo, useEffect, useRef, useState, useCallback } from 'react';
@@ -75,6 +76,93 @@ function computeConfidence(eyeContactPct, expressionCounts) {
     eyeScore:        +eyeScore.toFixed(1),
     nonFearfulScore: +nonFearfulPct.toFixed(1),
   };
+}
+
+/* ─────────────────────────────────────────────────────────
+   Speech analysis helpers
+───────────────────────────────────────────────────────── */
+
+/**
+ * List of filler tokens to detect (lower-case, word-boundary matched).
+ * "you know" is a two-word phrase so we match it before splitting.
+ */
+const FILLER_PHRASES = ['you know'];
+const FILLER_WORDS   = ['um', 'uh', 'like'];
+
+/**
+ * Count filler occurrences in a single string of text.
+ * Returns { um, uh, like, youKnow, total }.
+ */
+function countFillers(text) {
+  const lower = text.toLowerCase();
+  // Count "you know" first (phrase match)
+  const youKnow = (lower.match(/\byou know\b/g) || []).length;
+  // Remove "you know" so "know" isn't double-counted in single-word step
+  const stripped = lower.replace(/\byou know\b/g, '');
+  const um   = (stripped.match(/\bum\b/g)   || []).length;
+  const uh   = (stripped.match(/\buh\b/g)   || []).length;
+  const like = (stripped.match(/\blike\b/g) || []).length;
+  return { um, uh, like, youKnow, total: um + uh + like + youKnow };
+}
+
+/**
+ * Count words in a string (splits on whitespace, filters empties).
+ */
+function wordCount(text) {
+  return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+/**
+ * Analyse only the user turns in the transcript.
+ *
+ * Returns:
+ *  {
+ *    fillers:      { um, uh, like, youKnow, total }
+ *    totalWords:   number   — all words spoken by user
+ *    durationSecs: number   — wall-clock span of user speech (approx.)
+ *    wpm:          number|null  — words per minute (null if < 2 turns)
+ *    fillerRate:   number   — fillers per 100 words (0 if no words)
+ *  }
+ */
+function analyseSpeech(transcript) {
+  const userTurns = transcript.filter((t) => t.speaker === 'user' && t.text?.trim());
+
+  if (userTurns.length === 0) {
+    return { fillers: { um: 0, uh: 0, like: 0, youKnow: 0, total: 0 },
+             totalWords: 0, durationSecs: 0, wpm: null, fillerRate: 0 };
+  }
+
+  // Aggregate filler counts and word counts across all user turns
+  const fillers = { um: 0, uh: 0, like: 0, youKnow: 0, total: 0 };
+  let totalWords = 0;
+
+  for (const turn of userTurns) {
+    const f = countFillers(turn.text);
+    fillers.um      += f.um;
+    fillers.uh      += f.uh;
+    fillers.like    += f.like;
+    fillers.youKnow += f.youKnow;
+    fillers.total   += f.total;
+    totalWords      += wordCount(turn.text);
+  }
+
+  // WPM: total user words / total elapsed time of the whole session in minutes.
+  // We use the first and last user-turn timestamps as the speaking window.
+  // If there's only one user turn we can't compute a meaningful rate.
+  let wpm = null;
+  let durationSecs = 0;
+  if (userTurns.length >= 2) {
+    const first = new Date(userTurns[0].timestamp).getTime();
+    const last  = new Date(userTurns[userTurns.length - 1].timestamp).getTime();
+    durationSecs = Math.max(1, (last - first) / 1000);
+    wpm = Math.round((totalWords / durationSecs) * 60);
+  }
+
+  const fillerRate = totalWords > 0
+    ? +((fillers.total / totalWords) * 100).toFixed(1)
+    : 0;
+
+  return { fillers, totalWords, durationSecs, wpm, fillerRate };
 }
 
 /**
@@ -390,6 +478,126 @@ function FeedbackSection({ pairs, ratings, status, error }) {
 }
 
 /* ─────────────────────────────────────────────────────────
+   SpeechStats — filler-word counts + WPM panel
+───────────────────────────────────────────────────────── */
+
+/**
+ * WPM benchmark labels — typical interview speaking-pace ranges.
+ * Conversational: 120-160 wpm. Fast: >180. Slow: <100.
+ */
+function wpmLabel(wpm) {
+  if (wpm === null) return null;
+  if (wpm < 90)  return { text: 'Very slow',  color: 'var(--color-danger)' };
+  if (wpm < 120) return { text: 'Slow',        color: '#f59e0b' };
+  if (wpm <= 160) return { text: 'Good pace',  color: 'var(--color-success)' };
+  if (wpm <= 185) return { text: 'Slightly fast', color: '#f59e0b' };
+  return               { text: 'Too fast',    color: 'var(--color-danger)' };
+}
+
+/**
+ * Filler-rate severity colour.
+ * < 2 per 100 words = fine, 2-5 = moderate, > 5 = high.
+ */
+function fillerRateColor(rate) {
+  if (rate <= 2)  return 'var(--color-success)';
+  if (rate <= 5)  return '#f59e0b';
+  return 'var(--color-danger)';
+}
+
+function SpeechStats({ speech }) {
+  const { fillers, totalWords, wpm, fillerRate } = speech;
+  const hasData = totalWords > 0;
+
+  if (!hasData) return null;
+
+  const pace    = wpmLabel(wpm);
+  const frColor = fillerRateColor(fillerRate);
+
+  const fillerItems = [
+    { key: 'um',       label: 'Um',       count: fillers.um },
+    { key: 'uh',       label: 'Uh',       count: fillers.uh },
+    { key: 'like',     label: 'Like',     count: fillers.like },
+    { key: 'youKnow',  label: 'You know', count: fillers.youKnow },
+  ];
+  const maxFiller = Math.max(1, ...fillerItems.map((f) => f.count));
+
+  return (
+    <section className="rp2-section" aria-labelledby="rp2-speech-heading">
+      <SectionHead
+        icon="◈"
+        title="Speech Analysis"
+        badge={`${totalWords} words`}
+      />
+
+      <div className="rp2-speech-grid">
+
+        {/* ── WPM card ── */}
+        <div className="rp2-speech-card rp2-speech-card--wpm">
+          <p className="rp2-speech-card__eyebrow">Speaking Pace</p>
+          <div className="rp2-speech-wpm">
+            <span
+              className="rp2-speech-wpm__num"
+              style={{ color: pace?.color ?? 'var(--color-accent)' }}
+            >
+              {wpm !== null ? wpm : '—'}
+            </span>
+            <span className="rp2-speech-wpm__unit">wpm</span>
+          </div>
+          {pace && (
+            <p className="rp2-speech-wpm__label" style={{ color: pace.color }}>
+              {pace.text}
+            </p>
+          )}
+          <p className="rp2-speech-wpm__hint">
+            Ideal interview pace: 120–160 wpm
+          </p>
+        </div>
+
+        {/* ── Filler card ── */}
+        <div className="rp2-speech-card rp2-speech-card--fillers">
+          <div className="rp2-speech-card__header">
+            <p className="rp2-speech-card__eyebrow">Filler Words</p>
+            <span
+              className="rp2-speech-filler-total"
+              style={{ color: frColor }}
+            >
+              {fillers.total}
+              <span className="rp2-speech-filler-total__rate">
+                ({fillerRate}%)
+              </span>
+            </span>
+          </div>
+
+          {/* Individual filler bars */}
+          <div className="rp2-filler-bars">
+            {fillerItems.map(({ key, label, count }) => (
+              <div key={key} className="rp2-filler-bar-row">
+                <span className="rp2-filler-bar-row__label">{label}</span>
+                <div className="rp2-filler-bar-row__track">
+                  <div
+                    className="rp2-filler-bar-row__fill"
+                    style={{
+                      '--bar-pct':   `${(count / maxFiller) * 100}%`,
+                      '--bar-color': count > 0 ? frColor : 'var(--color-border)',
+                    }}
+                  />
+                </div>
+                <span className="rp2-filler-bar-row__count">{count}</span>
+              </div>
+            ))}
+          </div>
+
+          <p className="rp2-speech-filler-hint">
+            Aim for &lt; 2 fillers per 100 words spoken
+          </p>
+        </div>
+
+      </div>
+    </section>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
    SectionHead — labelled section header
 ───────────────────────────────────────────────────────── */
 function SectionHead({ icon, title, badge }) {
@@ -456,6 +664,9 @@ export default function ReportPage() {
 
   /* ── Q&A pairs derived from transcript ── */
   const qaPairs = useMemo(() => buildQAPairs(transcript), [transcript]);
+
+  /* ── Speech analysis (filler words + WPM) — pure client-side ── */
+  const speech = useMemo(() => analyseSpeech(transcript), [transcript]);
 
   /* ── AI answer ratings ── */
   // 'idle' | 'loading' | 'done' | 'error'
@@ -598,7 +809,12 @@ export default function ReportPage() {
       />
 
       {/* ══════════════════════════════════════════════════
-          4. SCORE RINGS
+          4. SPEECH ANALYSIS
+      ══════════════════════════════════════════════════ */}
+      <SpeechStats speech={speech} />
+
+      {/* ══════════════════════════════════════════════════
+          5. SCORE RINGS
       ══════════════════════════════════════════════════ */}
       {hasVision && (
         <section className="rp2-section" aria-labelledby="rp2-scores-heading">
