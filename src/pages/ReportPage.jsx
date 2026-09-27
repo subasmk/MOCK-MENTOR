@@ -8,18 +8,20 @@
  *   B. localStorage       — latest vision session (mm_vision_sessions)
  *
  * Sections (top → bottom):
- *   1. Hero banner       — SESSION COMPLETE, duration, date
- *   2. Transcript panel  — scrollable holographic Q&A
- *   3. Score rings       — Confidence · Eye Contact · Non-Fearful · Face Presence
- *   4. Expression bars   — horizontal breakdown of the four categories
- *   5. Session stats     — compact data grid
- *   6. Footer nav        — Start New Session · Back to Dashboard
+ *   1. Hero banner        — SESSION COMPLETE, duration, date
+ *   2. Transcript panel   — scrollable holographic Q&A
+ *   3. Answer Feedback    — per-answer AI ratings (1-10) + improvement tips
+ *   4. Score rings        — Confidence · Eye Contact · Non-Fearful · Face Presence
+ *   5. Expression bars    — horizontal breakdown of the four categories
+ *   6. Session stats      — compact data grid
+ *   7. Footer nav         — Start New Session · Back to Dashboard
  */
 
-import React, { useMemo, useEffect, useRef } from 'react';
+import React, { useMemo, useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate }        from 'react-router-dom';
 import { useMockMentor }      from '../context/MockMentorContext';
 import { getSavedSessions }   from '../tracking/sessionManager';
+import { rateTranscript }     from '../services/gemini';
 import './ReportPage.css';
 
 /* ─────────────────────────────────────────────────────────
@@ -73,6 +75,27 @@ function computeConfidence(eyeContactPct, expressionCounts) {
     eyeScore:        +eyeScore.toFixed(1),
     nonFearfulScore: +nonFearfulPct.toFixed(1),
   };
+}
+
+/**
+ * Pair up mentor-questions with the following user-answers from the raw
+ * transcript array.  Returns only pairs where both halves are non-empty.
+ *
+ * @param {Array<{speaker:'user'|'mentor', text:string}>} transcript
+ * @returns {Array<{question:string, answer:string}>}
+ */
+function buildQAPairs(transcript) {
+  const pairs = [];
+  for (let i = 0; i < transcript.length - 1; i++) {
+    const curr = transcript[i];
+    const next = transcript[i + 1];
+    if (curr.speaker === 'mentor' && next.speaker === 'user') {
+      const q = curr.text?.trim();
+      const a = next.text?.trim();
+      if (q && a) pairs.push({ question: q, answer: a });
+    }
+  }
+  return pairs;
 }
 
 function facePresencePct(stats) {
@@ -250,6 +273,123 @@ function TranscriptPanel({ transcript, interviewer }) {
 }
 
 /* ─────────────────────────────────────────────────────────
+   AnswerFeedback — per-answer rating card
+───────────────────────────────────────────────────────── */
+
+/** Colour ramp: red → amber → green as score rises */
+function scoreColor(score) {
+  if (score >= 8) return 'var(--color-success)';
+  if (score >= 5) return '#f59e0b';
+  return 'var(--color-danger)';
+}
+
+/**
+ * A single Q&A pair with its AI-generated score and tip.
+ */
+function AnswerCard({ index, question, answer, rating }) {
+  const color = rating ? scoreColor(rating.score) : 'var(--color-text-dim)';
+  return (
+    <div className="rp2-answer-card" style={{ '--answer-color': color }}>
+      {/* Index badge */}
+      <div className="rp2-answer-card__index" aria-hidden="true">
+        Q{index + 1}
+      </div>
+
+      <div className="rp2-answer-card__body">
+        {/* Question */}
+        <p className="rp2-answer-card__question">{question}</p>
+
+        {/* Answer */}
+        <p className="rp2-answer-card__answer">{answer}</p>
+
+        {/* Rating row */}
+        {rating && (
+          <div className="rp2-answer-card__rating">
+            {/* Score dial */}
+            <div className="rp2-answer-card__score" style={{ color }}>
+              <span className="rp2-answer-card__score-num">{rating.score}</span>
+              <span className="rp2-answer-card__score-denom">/10</span>
+            </div>
+
+            {/* Mini score bar */}
+            <div className="rp2-answer-card__bar-track" aria-hidden="true">
+              <div
+                className="rp2-answer-card__bar-fill"
+                style={{
+                  '--score-pct': `${rating.score * 10}%`,
+                  '--score-color': color,
+                }}
+              />
+            </div>
+
+            {/* Tip */}
+            <p className="rp2-answer-card__tip">
+              <span className="rp2-answer-card__tip-icon" aria-hidden="true">↗</span>
+              {rating.tip}
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Full feedback section: loading skeleton → error state → list of AnswerCards.
+ */
+function FeedbackSection({ pairs, ratings, status, error }) {
+  if (pairs.length === 0) return null;
+
+  return (
+    <section className="rp2-section" aria-labelledby="rp2-feedback-heading">
+      <SectionHead
+        icon="★"
+        title="Answer Ratings"
+        badge={
+          status === 'done'
+            ? `avg ${(ratings.reduce((s, r) => s + r.score, 0) / ratings.length).toFixed(1)}/10`
+            : null
+        }
+      />
+
+      {/* Loading skeleton */}
+      {status === 'loading' && (
+        <div className="rp2-feedback-loading" aria-label="Analysing answers…">
+          <span className="rp2-feedback-loading__dot" />
+          <span className="rp2-feedback-loading__dot" />
+          <span className="rp2-feedback-loading__dot" />
+          <span className="rp2-feedback-loading__text">
+            Analysing your answers with AI…
+          </span>
+        </div>
+      )}
+
+      {/* Error state */}
+      {status === 'error' && (
+        <div className="rp2-feedback-error" role="alert">
+          <span aria-hidden="true">⚠</span> {error}
+        </div>
+      )}
+
+      {/* Cards */}
+      {status === 'done' && (
+        <div className="rp2-answer-list">
+          {pairs.map((pair, i) => (
+            <AnswerCard
+              key={i}
+              index={i}
+              question={pair.question}
+              answer={pair.answer}
+              rating={ratings.find((r) => r.index === i) ?? null}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
    SectionHead — labelled section header
 ───────────────────────────────────────────────────────── */
 function SectionHead({ icon, title, badge }) {
@@ -313,6 +453,35 @@ export default function ReportPage() {
   const hasVision     = vStats !== null;
   const hasTranscript = transcript && transcript.length > 0;
   const hasAnything   = hasVision || hasTranscript;
+
+  /* ── Q&A pairs derived from transcript ── */
+  const qaPairs = useMemo(() => buildQAPairs(transcript), [transcript]);
+
+  /* ── AI answer ratings ── */
+  // 'idle' | 'loading' | 'done' | 'error'
+  const [ratingStatus, setRatingStatus] = useState('idle');
+  const [ratings,      setRatings]      = useState([]);
+  const [ratingError,  setRatingError]  = useState('');
+
+  const fetchRatings = useCallback(async () => {
+    if (qaPairs.length === 0) return;
+    setRatingStatus('loading');
+    setRatingError('');
+    try {
+      const result = await rateTranscript({ role: role || 'General', turns: qaPairs });
+      setRatings(result);
+      setRatingStatus('done');
+    } catch (err) {
+      setRatingError(err.message ?? 'Failed to get ratings from AI.');
+      setRatingStatus('error');
+    }
+  }, [qaPairs, role]);
+
+  /* Auto-fetch once when the page mounts and there are Q&A pairs */
+  useEffect(() => {
+    if (qaPairs.length > 0) fetchRatings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run once on mount — qaPairs is stable after mount
 
   /* ── Entrance animation trigger ── */
   const rootRef = useRef(null);
@@ -419,7 +588,17 @@ export default function ReportPage() {
       </section>
 
       {/* ══════════════════════════════════════════════════
-          3. SCORE RINGS
+          3. ANSWER RATINGS
+      ══════════════════════════════════════════════════ */}
+      <FeedbackSection
+        pairs={qaPairs}
+        ratings={ratings}
+        status={ratingStatus}
+        error={ratingError}
+      />
+
+      {/* ══════════════════════════════════════════════════
+          4. SCORE RINGS
       ══════════════════════════════════════════════════ */}
       {hasVision && (
         <section className="rp2-section" aria-labelledby="rp2-scores-heading">
