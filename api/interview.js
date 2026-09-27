@@ -60,7 +60,7 @@ function buildSystemInstruction(resume, role) {
 async function fetchWithRetry(url, options) {
   const RETRY_DELAYS_MS = [2000, 4000, 8000];
   for (let attempt = 0; ; attempt++) {
-    const geminiRes = await fetchWithRetry(url, options);
+    const geminiRes = await fetch(url, options);
     if (geminiRes.ok || attempt >= RETRY_DELAYS_MS.length ||
         (geminiRes.status !== 429 && geminiRes.status !== 503)) {
       return geminiRes;
@@ -117,7 +117,7 @@ export default async function handler(req, res) {
   /* Call Gemini */
   let geminiRes;
   try {
-    geminiRes = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+    geminiRes = await fetchWithRetry(`${GEMINI_URL}?key=${apiKey}`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
