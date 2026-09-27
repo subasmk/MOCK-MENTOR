@@ -43,6 +43,56 @@ function fmtSecs(totalSecs) {
   return `${s}s`;
 }
 
+/* ═══════════════════════════════════════════════════════════
+   Confidence Score
+═══════════════════════════════════════════════════════════ */
+
+/**
+ * Compute the two-component confidence score from live session stats.
+ *
+ * Returns null when there is insufficient data (no expressions detected yet),
+ * so the UI can display "--" instead of a misleading 0.
+ *
+ * @param {{ eyeContactPct: number, expressionCounts: object }} stats
+ * @returns {{ eyeScore: number, nonFearfulScore: number, overall: number } | null}
+ */
+function computeConfidence(stats) {
+  const { eyeContactPct, expressionCounts } = stats;
+  const { neutral, happy, fearful, surprised } = expressionCounts;
+
+  const totalExpressions = neutral + happy + fearful + surprised;
+
+  // Not enough data yet
+  if (totalExpressions === 0) return null;
+
+  // A: eye-contact score — already a 0-100 percentage
+  const eyeScore = Math.min(100, Math.max(0, eyeContactPct));
+
+  // B: non-fearful expression percentage
+  const nonFearfulScore = ((neutral + happy + surprised) / totalExpressions) * 100;
+
+  // 50/50 weighted overall
+  const overall = eyeScore * 0.5 + nonFearfulScore * 0.5;
+
+  return {
+    eyeScore:       +eyeScore.toFixed(1),
+    nonFearfulScore: +nonFearfulScore.toFixed(1),
+    overall:        +Math.min(100, Math.max(0, overall)).toFixed(1),
+  };
+}
+
+/**
+ * Exponentially-weighted average smoother.
+ * α = 0.25 means new samples contribute 25% of the update — gentle smoothing
+ * that responds within ~4 samples but avoids jarring frame-to-frame jumps.
+ */
+const SMOOTH_ALPHA = 0.25;
+
+function smoothValue(prev, next) {
+  if (prev === null) return next;
+  return prev + SMOOTH_ALPHA * (next - prev);
+}
+
 /** Format ISO timestamp as HH:MM:SS */
 function fmtTs(iso) {
   if (!iso) return '—';
@@ -71,8 +121,54 @@ const EXPRESSION_COLOR = {
    Sub-components
 ═══════════════════════════════════════════════════════════ */
 
+/**
+ * Compact confidence meter displayed as an overlay on the webcam feed.
+ * Positioned bottom-left so it doesn't obstruct the face area.
+ *
+ * @param {{ overall: number, eyeScore: number, nonFearfulScore: number } | null} confidence
+ */
+function ConfidenceMeter({ confidence }) {
+  if (confidence === null) {
+    return (
+      <div className="vp-conf-meter" aria-label="Confidence score: no data">
+        <span className="vp-conf-meter__label">CONFIDENCE</span>
+        <div className="vp-conf-meter__row">
+          <div className="vp-conf-meter__bar-track" aria-hidden="true">
+            <div className="vp-conf-meter__bar-fill" style={{ width: '0%' }} />
+          </div>
+          <span className="vp-conf-meter__pct">--</span>
+        </div>
+      </div>
+    );
+  }
+
+  const pct     = Math.round(confidence.overall);
+  const fillPct = `${pct}%`;
+
+  // Colour shifts: 0-40 danger red → 40-65 amber → 65-100 cyan
+  const fillClass =
+    pct >= 65 ? 'vp-conf-meter__bar-fill--high'
+    : pct >= 40 ? 'vp-conf-meter__bar-fill--mid'
+    : 'vp-conf-meter__bar-fill--low';
+
+  return (
+    <div className="vp-conf-meter" aria-label={`Confidence score: ${pct}%`}>
+      <span className="vp-conf-meter__label">CONFIDENCE</span>
+      <div className="vp-conf-meter__row">
+        <div className="vp-conf-meter__bar-track" aria-hidden="true">
+          <div
+            className={`vp-conf-meter__bar-fill ${fillClass}`}
+            style={{ width: fillPct }}
+          />
+        </div>
+        <span className="vp-conf-meter__pct">{fillPct}</span>
+      </div>
+    </div>
+  );
+}
+
 /** Live camera feed with status badges overlaid. */
-function CameraPanel({ videoRef, camStatus, onRetry, faceDetected, isMonitoring }) {
+function CameraPanel({ videoRef, camStatus, onRetry, faceDetected, isMonitoring, confidence }) {
   return (
     <div className={`vp-camera ${isMonitoring ? 'vp-camera--active' : ''}`}>
       {camStatus === 'denied' ? (
@@ -109,6 +205,9 @@ function CameraPanel({ videoRef, camStatus, onRetry, faceDetected, isMonitoring 
               MONITORING
             </div>
           )}
+
+          {/* Confidence meter overlay — bottom-left corner */}
+          <ConfidenceMeter confidence={confidence} />
 
           {/* Idle shimmer */}
           {camStatus === 'idle' && <div className="vp-camera__shimmer" />}
@@ -261,10 +360,13 @@ const EMPTY_STATS = {
 
 export default function VisionPage() {
   /* ── Refs ──────────────────────────────────────────────── */
-  const videoRef    = useRef(null);
-  const streamRef   = useRef(null);
-  const sessionRef  = useRef(null);   // current SessionManager instance
-  const statsTimerRef = useRef(null); // interval for pulling live stats into UI
+  const videoRef      = useRef(null);
+  const streamRef     = useRef(null);
+  const sessionRef    = useRef(null);   // current SessionManager instance
+  const statsTimerRef = useRef(null);   // interval for pulling live stats into UI
+  /** Smoothed overall confidence value — kept in a ref so smoothValue() can
+   *  read the previous value without a stale closure. Null until first sample. */
+  const smoothedConfRef = useRef(null);
 
   /* ── State ─────────────────────────────────────────────── */
   const [camStatus,    setCamStatus]    = useState('idle');   // 'idle'|'active'|'denied'
@@ -279,6 +381,13 @@ export default function VisionPage() {
 
   /* Accumulated session stats (updated every second) */
   const [stats, setStats] = useState(EMPTY_STATS);
+
+  /**
+   * Live confidence score — null means "no data yet" (display "--").
+   * Shape: { eyeScore, nonFearfulScore, overall } | null
+   * The `overall` field is EWA-smoothed to prevent jarring jumps.
+   */
+  const [confidence, setConfidence] = useState(null);
 
   /* ── Camera ─────────────────────────────────────────────── */
   const startCam = useCallback(async () => {
@@ -324,6 +433,8 @@ export default function VisionPage() {
     setExpression(null);
     setEyeContact(false);
     setStats(EMPTY_STATS);
+    setConfidence(null);
+    smoothedConfRef.current = null;
 
     // Create fresh session
     const session = createSession();
@@ -335,9 +446,28 @@ export default function VisionPage() {
       session.addSample(sample);
 
       // 2. Update live status pills
+      //    If no face, keep the last expression visible (don't reset to null)
+      //    so the overlay retains its previous valid score.
       setFaceDetected(sample.faceDetected);
-      setExpression(sample.faceDetected ? sample.expression : null);
-      setEyeContact(sample.faceDetected && sample.eyeContact);
+      if (sample.faceDetected) {
+        setExpression(sample.expression);
+        setEyeContact(sample.eyeContact);
+      }
+      // (intentionally do NOT clear expression/eyeContact on no-face frames)
+
+      // 3. Recompute confidence from accumulated stats and apply EWA smoothing
+      const currentStats = session.getStats();
+      const raw = computeConfidence(currentStats);
+      if (raw !== null) {
+        const smoothed = smoothValue(smoothedConfRef.current, raw.overall);
+        smoothedConfRef.current = smoothed;
+        setConfidence({
+          eyeScore:        raw.eyeScore,
+          nonFearfulScore: raw.nonFearfulScore,
+          overall:         +smoothed.toFixed(1),
+        });
+      }
+      // If raw is null (no expressions yet) we leave confidence as null — "--"
     }
 
     startTracking(videoRef.current, onSample);
@@ -367,6 +497,7 @@ export default function VisionPage() {
     setFaceDetected(false);
     setExpression(null);
     setEyeContact(false);
+    // Freeze confidence display — keep the final smoothed value visible
   }, [isMonitoring]);
 
   /* ── Derived display values ──────────────────────────────── */
@@ -416,6 +547,7 @@ export default function VisionPage() {
             onRetry={startCam}
             faceDetected={faceDetected}
             isMonitoring={isMonitoring}
+            confidence={confidence}
           />
 
           {/* Control buttons */}
@@ -456,6 +588,70 @@ export default function VisionPage() {
 
         {/* ── Right column: stats dashboard ──────────────── */}
         <main className="vp-right">
+
+          {/* ─ Confidence score breakdown card ─ */}
+          <section className="vp-section vp-conf-breakdown" aria-label="Confidence score">
+            <h2 className="vp-section__title">
+              Confidence Score
+              {confidence !== null && (
+                <span className="vp-conf-breakdown__overall">
+                  {confidence.overall}%
+                </span>
+              )}
+            </h2>
+
+            {confidence === null ? (
+              <p className="vp-conf-breakdown__empty">
+                Waiting for expression data — score will appear after the first face detection.
+              </p>
+            ) : (
+              <div className="vp-conf-breakdown__rows">
+                {/* Overall bar */}
+                <div className="vp-conf-breakdown__row vp-conf-breakdown__row--overall">
+                  <span className="vp-conf-breakdown__row-label">Overall</span>
+                  <div className="vp-conf-breakdown__bar-track">
+                    <div
+                      className={`vp-conf-breakdown__bar-fill ${
+                        confidence.overall >= 65 ? 'vp-conf-breakdown__bar-fill--high'
+                        : confidence.overall >= 40 ? 'vp-conf-breakdown__bar-fill--mid'
+                        : 'vp-conf-breakdown__bar-fill--low'
+                      }`}
+                      style={{ width: `${confidence.overall}%` }}
+                    />
+                  </div>
+                  <span className="vp-conf-breakdown__row-val">{confidence.overall}%</span>
+                </div>
+
+                {/* Eye-contact component */}
+                <div className="vp-conf-breakdown__row">
+                  <span className="vp-conf-breakdown__row-label">Eye Contact</span>
+                  <div className="vp-conf-breakdown__bar-track">
+                    <div
+                      className="vp-conf-breakdown__bar-fill vp-conf-breakdown__bar-fill--eye"
+                      style={{ width: `${confidence.eyeScore}%` }}
+                    />
+                  </div>
+                  <span className="vp-conf-breakdown__row-val">{confidence.eyeScore}%</span>
+                </div>
+
+                {/* Non-fearful expression component */}
+                <div className="vp-conf-breakdown__row">
+                  <span className="vp-conf-breakdown__row-label">Non-Fearful</span>
+                  <div className="vp-conf-breakdown__bar-track">
+                    <div
+                      className="vp-conf-breakdown__bar-fill vp-conf-breakdown__bar-fill--expr"
+                      style={{ width: `${confidence.nonFearfulScore}%` }}
+                    />
+                  </div>
+                  <span className="vp-conf-breakdown__row-val">{confidence.nonFearfulScore}%</span>
+                </div>
+
+                <p className="vp-conf-breakdown__formula">
+                  ({confidence.eyeScore} × 0.5) + ({confidence.nonFearfulScore} × 0.5) = {confidence.overall}
+                </p>
+              </div>
+            )}
+          </section>
 
           {/* ─ Top stat cards row ─ */}
           <section className="vp-cards" aria-label="Session statistics">
@@ -537,6 +733,22 @@ export default function VisionPage() {
                   <dt>No Face</dt>
                   <dd>{stats.noFaceCount}</dd>
                 </div>
+                {confidence !== null && (
+                  <>
+                    <div className="vp-summary__item vp-summary__item--confidence">
+                      <dt>Confidence</dt>
+                      <dd>{confidence.overall}%</dd>
+                    </div>
+                    <div className="vp-summary__item">
+                      <dt>Eye Contact</dt>
+                      <dd>{confidence.eyeScore}%</dd>
+                    </div>
+                    <div className="vp-summary__item">
+                      <dt>Non-Fearful</dt>
+                      <dd>{confidence.nonFearfulScore}%</dd>
+                    </div>
+                  </>
+                )}
               </dl>
             </section>
           )}
