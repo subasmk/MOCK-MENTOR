@@ -24,9 +24,8 @@
  *   tip    — one concise improvement suggestion (≤ 25 words)
  */
 
-const GEMINI_MODEL = 'gemini-3.5-flash';
-const GEMINI_URL   =
-  `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+const OPENROUTER_MODEL = 'google/gemma-4-31b-it:free';
+const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 /* ─────────────────────────────────────────────────────────
    Prompt builder
@@ -60,8 +59,11 @@ function buildPrompt(role, turns) {
 ───────────────────────────────────────────────────────── */
 function parseRatings(raw) {
   // Strip possible markdown fences
-  const cleaned = raw.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
-  const parsed  = JSON.parse(cleaned);
+  const cleaned = raw.replace(/<thought>[\s\S]*?(<\/thought>|$)/gi, '').replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
+  const start = cleaned.indexOf('[');
+  const end = cleaned.lastIndexOf(']');
+  if (start < 0 || end < start) throw new Error('No JSON array found');
+  const parsed = JSON.parse(cleaned.slice(start, end + 1));
   if (!Array.isArray(parsed)) throw new Error('Expected JSON array');
   return parsed.map((r) => ({
     index: Number(r.index),
@@ -74,14 +76,14 @@ function parseRatings(raw) {
    Handler
 ───────────────────────────────────────────────────────── */
 
-/* Retry with backoff on Gemini free-tier rate limits (429) and demand spikes (503). */
+/* Retry with backoff on OpenRouter free-tier rate limits (429) and demand spikes (503). */
 async function fetchWithRetry(url, options) {
   const RETRY_DELAYS_MS = [2000, 4000, 8000];
   for (let attempt = 0; ; attempt++) {
-    const geminiRes = await fetch(url, options);
-    if (geminiRes.ok || attempt >= RETRY_DELAYS_MS.length ||
-        (geminiRes.status !== 429 && geminiRes.status !== 503)) {
-      return geminiRes;
+    const upstreamRes = await fetch(url, options);
+    if (upstreamRes.ok || attempt >= RETRY_DELAYS_MS.length ||
+        (upstreamRes.status !== 429 && upstreamRes.status !== 503)) {
+      return upstreamRes;
     }
     await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt]));
   }
@@ -92,10 +94,10 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed. Use POST.' });
   }
 
-  const apiKey = process.env.GEMINI_KEY;
+  const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
     return res.status(500).json({
-      error: 'GEMINI_KEY is not configured. Add it to Vercel → Settings → Environment Variables.',
+      error: 'OPENROUTER_API_KEY is not configured. Add it to Vercel → Settings → Environment Variables.',
     });
   }
 
@@ -110,40 +112,39 @@ export default async function handler(req, res) {
 
   const prompt = buildPrompt(role, turns);
 
-  let geminiRes;
+  let upstreamRes;
   try {
-    geminiRes = await fetchWithRetry(`${GEMINI_URL}?key=${apiKey}`, {
+    upstreamRes = await fetchWithRetry(OPENROUTER_URL, {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature:     0.3,   // low temp → consistent structured output
-          maxOutputTokens: 4096,
-          topP:            0.85,
-          responseMimeType: 'application/json',
-        },
+        model: OPENROUTER_MODEL,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.3,
+        max_tokens: 4096,
+        top_p: 0.85,
+        reasoning: { enabled: false },
       }),
     });
   } catch (networkErr) {
     return res.status(500).json({
-      error: `Network error reaching Gemini: ${networkErr.message}`,
+      error: `Network error reaching OpenRouter: ${networkErr.message}`,
     });
   }
 
-  if (!geminiRes.ok) {
-    const errBody = await geminiRes.text();
+  if (!upstreamRes.ok) {
+    const errBody = await upstreamRes.text();
     return res.status(502).json({
-      error: `Gemini API error ${geminiRes.status}: ${errBody}`,
+      error: `OpenRouter API error ${upstreamRes.status}: ${errBody}`,
     });
   }
 
-  const data  = await geminiRes.json();
-  const raw   = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+  const data  = await upstreamRes.json();
+  const raw   = data?.choices?.[0]?.message?.content?.trim();
 
   if (!raw) {
     return res.status(502).json({
-      error: 'Gemini returned an empty response.',
+      error: 'OpenRouter returned an empty response.',
     });
   }
 
@@ -152,7 +153,7 @@ export default async function handler(req, res) {
     ratings = parseRatings(raw);
   } catch (parseErr) {
     return res.status(502).json({
-      error: `Failed to parse Gemini response: ${parseErr.message}. Raw: ${raw.slice(0, 200)}`,
+      error: `Failed to parse OpenRouter response: ${parseErr.message}. Raw: ${raw.slice(0, 200)}`,
     });
   }
 
