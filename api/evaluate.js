@@ -24,9 +24,8 @@
  *   400 / 405 / 500  { error: string }
  */
 
-const GEMINI_MODEL = 'gemini-3.5-flash';
-const GEMINI_URL   =
-  `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+const OPENROUTER_MODEL = 'google/gemma-4-31b-it:free';
+const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 /* ─────────────────────────────────────────────────────────
    Prompt
@@ -64,8 +63,11 @@ function buildPrompt(role, turns) {
 const REQUIRED_KEYS = ['grammarClarity', 'answerStructure', 'relevance', 'professionalTone'];
 
 function parseEvaluation(raw) {
-  const cleaned = raw.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
-  const obj = JSON.parse(cleaned);
+  const cleaned = raw.replace(/<thought>[\s\S]*?(<\/thought>|$)/gi, '').replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
+  const start = cleaned.indexOf('{');
+  const end = cleaned.lastIndexOf('}');
+  if (start < 0 || end < start) throw new Error('No JSON object found');
+  const obj = JSON.parse(cleaned.slice(start, end + 1));
   const result = {};
   for (const key of REQUIRED_KEYS) {
     if (!obj[key]) throw new Error(`Missing dimension: ${key}`);
@@ -84,14 +86,14 @@ function parseEvaluation(raw) {
    Handler
 ───────────────────────────────────────────────────────── */
 
-/* Retry with backoff on Gemini free-tier rate limits (429) and demand spikes (503). */
+/* Retry with backoff on OpenRouter free-tier rate limits (429) and demand spikes (503). */
 async function fetchWithRetry(url, options) {
   const RETRY_DELAYS_MS = [2000, 4000, 8000];
   for (let attempt = 0; ; attempt++) {
-    const geminiRes = await fetch(url, options);
-    if (geminiRes.ok || attempt >= RETRY_DELAYS_MS.length ||
-        (geminiRes.status !== 429 && geminiRes.status !== 503)) {
-      return geminiRes;
+    const upstreamRes = await fetch(url, options);
+    if (upstreamRes.ok || attempt >= RETRY_DELAYS_MS.length ||
+        (upstreamRes.status !== 429 && upstreamRes.status !== 503)) {
+      return upstreamRes;
     }
     await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt]));
   }
@@ -102,9 +104,9 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed. Use POST.' });
   }
 
-  const apiKey = process.env.GEMINI_KEY;
+  const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: 'GEMINI_KEY is not configured.' });
+    return res.status(500).json({ error: 'OPENROUTER_API_KEY is not configured.' });
   }
 
   const { role, turns } = req.body ?? {};
@@ -117,33 +119,32 @@ export default async function handler(req, res) {
 
   const prompt = buildPrompt(role, turns);
 
-  let geminiRes;
+  let upstreamRes;
   try {
-    geminiRes = await fetchWithRetry(`${GEMINI_URL}?key=${apiKey}`, {
+    upstreamRes = await fetchWithRetry(OPENROUTER_URL, {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature:      0.25,
-          maxOutputTokens: 2048,
-          topP:             0.85,
-          responseMimeType: 'application/json',
-        },
+        model: OPENROUTER_MODEL,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.25,
+        max_tokens: 2048,
+        top_p: 0.85,
+        reasoning: { enabled: false },
       }),
     });
   } catch (netErr) {
     return res.status(500).json({ error: `Network error: ${netErr.message}` });
   }
 
-  if (!geminiRes.ok) {
-    const errBody = await geminiRes.text();
-    return res.status(502).json({ error: `Gemini API ${geminiRes.status}: ${errBody}` });
+  if (!upstreamRes.ok) {
+    const errBody = await upstreamRes.text();
+    return res.status(502).json({ error: `OpenRouter API ${upstreamRes.status}: ${errBody}` });
   }
 
-  const data = await geminiRes.json();
-  const raw  = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-  if (!raw) return res.status(502).json({ error: 'Gemini returned an empty response.' });
+  const data = await upstreamRes.json();
+  const raw  = data?.choices?.[0]?.message?.content?.trim();
+  if (!raw) return res.status(502).json({ error: 'OpenRouter returned an empty response.' });
 
   let evaluation;
   try {
