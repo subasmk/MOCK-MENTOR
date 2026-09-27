@@ -45,6 +45,7 @@ import { useNavigate }                          from 'react-router-dom';
 import { useMockMentor }                        from '../context/MockMentorContext';
 import { askGemini }                            from '../services/gemini';
 import { speakText, cancelSpeech, TTS_SUPPORTED } from '../services/tts';
+import { startTracking, stopTracking }             from '../tracking/faceTracker';
 import './InterviewPage.css';
 
 /* ─────────────────────────────────────────────────────────
@@ -402,7 +403,10 @@ export default function InterviewPage() {
      Mount effect
   ───────────────────────────────────────────────────── */
   useEffect(() => {
-    startWebcam();
+    startWebcam().then(() => {
+      // videoRef.current now has a live srcObject — start face tracking
+      startTracking(videoRef.current);
+    });
     timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000);
 
     if (!seededRef.current) {
@@ -412,6 +416,7 @@ export default function InterviewPage() {
 
     return () => {
       clearInterval(timerRef.current);
+      stopTracking();
       stopWebcam();
       stopListening('unmount');
       cancelSpeech();               // stop TTS if component unmounts mid-sentence
