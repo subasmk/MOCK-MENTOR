@@ -44,8 +44,7 @@ import React, {
 import { useNavigate }                          from 'react-router-dom';
 import { useMockMentor }                        from '../context/MockMentorContext';
 import { askGemini }                            from '../services/gemini';
-import { speakText, cancelSpeech, TTS_SUPPORTED, ttsSpeechRate } from '../services/tts';
-import { createTalkingAvatar }                 from '../services/talkingHeadAvatar';
+import { speakText, cancelSpeech, TTS_SUPPORTED } from '../services/tts';
 import { startTracking, stopTracking }             from '../tracking/faceTracker';
 import './InterviewPage.css';
 
@@ -138,11 +137,6 @@ export default function InterviewPage() {
   const mouthIntervalRef  = useRef(null);  // fallback random-interval timer
   const hasBoundaryRef    = useRef(false); // true once browser fires a boundary event
   const mouthTimeoutRef   = useRef(null);  // per-word close delay
-
-  /* ── 3D animated avatar (TalkingHead) ── */
-  const avatar3dContainerRef = useRef(null); // div the 3D canvas mounts into
-  const talkingAvatarRef     = useRef(null); // TalkingAvatarController
-  const [avatar3DReady, setAvatar3DReady] = useState(false); // true once the model is on screen
 
   /** Stop all mouth animation timers and close the mouth. */
   const stopMouthAnim = useCallback(() => {
@@ -428,18 +422,15 @@ export default function InterviewPage() {
          then navigate to /report after a 2.5 s transition.
       ─────────────────────────────────────────────────── */
       setIsSpeaking(true);
-      startMouthFallback();          // start fallback; boundary events will take over if supported
       speakText({
         text:     reply,
         avatarId: avatar,
         onStart: () => {
-          /* Real voice starts now — start the 3D avatar's lip-sync at the
-             same moment so mouth and voice stay together. */
-          talkingAvatarRef.current?.speak(reply, ttsSpeechRate(avatar));
+          // Start only when TTS really begins; boundary events take over if available.
+          startMouthFallback();
         },
         onBoundary: handleBoundary,
         onEnd: () => {
-          talkingAvatarRef.current?.stopSpeaking();
           stopMouthAnim();
           setIsSpeaking(false);
           if (sessionEnded) {
@@ -454,7 +445,6 @@ export default function InterviewPage() {
           }
         },
         onError: () => {
-          talkingAvatarRef.current?.stopSpeaking();
           stopMouthAnim();
           setIsSpeaking(false);
         },
@@ -499,36 +489,12 @@ export default function InterviewPage() {
     });
     timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000);
 
-    /* Load the animated 3D interviewer (TalkingHead). On any failure the
-       static avatar image + CSS mouth animation remain as the fallback. */
-    let avatar3dCancelled = false;
-    if (avatar3dContainerRef.current) {
-      createTalkingAvatar({
-        container: avatar3dContainerRef.current,
-        avatarId: avatar,
-      })
-        .then((controller) => {
-          if (avatar3dCancelled) {
-            controller.dispose();
-            return;
-          }
-          talkingAvatarRef.current = controller;
-          setAvatar3DReady(true);
-        })
-        .catch((err) => {
-          console.warn('3D avatar unavailable — using image fallback.', err);
-        });
-    }
-
     if (!seededRef.current) {
       seededRef.current = true;
       sendToGeminiRef.current(FIRST_TURN_SENTINEL);
     }
 
     return () => {
-      avatar3dCancelled = true;
-      talkingAvatarRef.current?.dispose();
-      talkingAvatarRef.current = null;
       clearInterval(timerRef.current);
       stopTracking();
       stopWebcam();
@@ -585,7 +551,6 @@ export default function InterviewPage() {
   function handleEndSession() {
     clearInterval(timerRef.current);
     cancelSpeech();
-    talkingAvatarRef.current?.stopSpeaking();
     stopMouthAnim();           // stop mouth immediately when speech is cancelled
     stopListening('end');
     stopWebcam();
@@ -695,35 +660,28 @@ export default function InterviewPage() {
           <div className="iv-avatar-frame">
             <div className="iv-avatar-ring iv-avatar-ring--outer" aria-hidden="true" />
             <div className="iv-avatar-ring iv-avatar-ring--inner" aria-hidden="true" />
-            {/* Animated 3D interviewer (TalkingHead) — mounts its own canvas.
-                Until the model is ready (or if it fails), the static avatar
-                image + CSS mouth animation below remain the fallback. */}
-            <div
-              ref={avatar3dContainerRef}
-              className={`iv-avatar-3d${avatar3DReady ? ' iv-avatar-3d--ready' : ''}`}
-              aria-hidden="true"
+            {/* Original artwork stays visible for every interviewer, including ARIA-7. */}
+            <img
+              src={interviewer.src}
+              alt={interviewer.name}
+              className={[
+                'iv-avatar-img',
+                isSpeaking  ? 'iv-avatar-img--speaking'  : '',
+                isListening ? 'iv-avatar-img--listening' : '',
+              ].join(' ')}
+              draggable={false}
             />
-            {!avatar3DReady && (
-              <>
-                {/* Avatar image — state-driven CSS animation class drives head bob / breathing */}
+            {/* A masked copy of the same image stretches only the mouth pixels.
+                Positions match each portrait's real mouth in the circular crop. */}
+            {isSpeaking && (
+              <div className={`iv-avatar-lips iv-avatar-lips--${avatar}`} aria-hidden="true">
                 <img
                   src={interviewer.src}
-                  alt={interviewer.name}
-                  className={[
-                    'iv-avatar-img',
-                    isSpeaking  ? 'iv-avatar-img--speaking'  : '',
-                    isListening ? 'iv-avatar-img--listening'  : '',
-                  ].join(' ')}
+                  alt=""
+                  className={`iv-avatar-lips__image${mouthOpen ? ' iv-avatar-lips__image--open' : ''}`}
                   draggable={false}
                 />
-                {/* Mouth overlay — only rendered while speaking */}
-                {isSpeaking && (
-                  <div
-                    className={`iv-avatar-mouth${mouthOpen ? ' iv-avatar-mouth--open' : ''}`}
-                    aria-hidden="true"
-                  />
-                )}
-              </>
+              </div>
             )}
           </div>
 
@@ -937,4 +895,4 @@ export default function InterviewPage() {
       </footer>
     </div>
   );
-              }
+    }
