@@ -24,9 +24,15 @@
  *   500  { error: string }   upstream model error
  *
  * ── Model ───────────────────────────────────────────────
- *   google/gemma-4-31b-it:free (verify free availability before changing) */
+ *   Free-model chain with automatic fallback on 429/503 (see OPENROUTER_MODELS) */
 
-const OPENROUTER_MODEL = 'google/gemma-4-31b-it:free';
+const OPENROUTER_MODELS = [
+  /* Free models rate-limit independently; fall through on 429/503. */
+  'qwen/qwen3.8-27b:free',
+  'nvidia/nemotron-3-super-120b-a12b:free',
+  'google/gemma-4-26b-a4b-it:free',
+  'nvidia/nemotron-3-ultra-550b-a55b:free',
+];
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 /* ─────────────────────────────────────────────────────────
@@ -71,7 +77,7 @@ function buildSystemInstruction(resume, role) {
 
 /* Retry with backoff on OpenRouter free-tier rate limits (429) and demand spikes (503). */
 async function fetchWithRetry(url, options) {
-  const RETRY_DELAYS_MS = [2000, 4000, 8000];
+  const RETRY_DELAYS_MS = [1000, 2000];
   for (let attempt = 0; ; attempt++) {
     const upstreamRes = await fetch(url, options);
     if (upstreamRes.ok || attempt >= RETRY_DELAYS_MS.length ||
@@ -126,18 +132,21 @@ export default async function handler(req, res) {
   /* Call OpenRouter */
   let upstreamRes;
   try {
-    upstreamRes = await fetchWithRetry(OPENROUTER_URL, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model: OPENROUTER_MODEL,
-        messages,
-        temperature: 0.7,
-        max_tokens: 512,
-        top_p: 0.9,
-        reasoning: { enabled: false },
-      }),
-    });
+    for (const model of OPENROUTER_MODELS) {
+      upstreamRes = await fetchWithRetry(OPENROUTER_URL, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: 0.7,
+          max_tokens: 512,
+          top_p: 0.9,
+          reasoning: { enabled: false },
+        }),
+      });
+      if (upstreamRes.ok || (upstreamRes.status !== 429 && upstreamRes.status !== 503)) break;
+    }
   } catch (networkErr) {
     return res.status(500).json({
       error: `Network error reaching OpenRouter: ${networkErr.message}`,
