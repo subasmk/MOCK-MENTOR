@@ -12,6 +12,14 @@
  *   rateTranscript({ role, turns })
  *     → Promise<Array<{ index: number, score: number, tip: string }>>
  *
+ *   evaluateTranscript({ role, turns })
+ *     → Promise<{
+ *         grammarClarity:   { score: number, reason: string },
+ *         answerStructure:  { score: number, reason: string },
+ *         relevance:        { score: number, reason: string },
+ *         professionalTone: { score: number, reason: string },
+ *       }>
+ *
  *   `turns` shape:  Array<{ question: string, answer: string }>
  *
  * Conversation history format  (Gemini multi-turn, built by InterviewPage)
@@ -90,4 +98,41 @@ export async function rateTranscript({ role, turns }) {
     throw new Error('Unexpected response shape from /api/grade');
   }
   return data.ratings;
+}
+
+/**
+ * POST the completed transcript to /api/evaluate and return a 4-dimension
+ * communication evaluation.
+ *
+ * @param {object}  params
+ * @param {string}  params.role   Target job role
+ * @param {Array<{question:string, answer:string}>} params.turns
+ * @returns {Promise<{
+ *   grammarClarity:   {score:number, reason:string},
+ *   answerStructure:  {score:number, reason:string},
+ *   relevance:        {score:number, reason:string},
+ *   professionalTone: {score:number, reason:string},
+ * }>}
+ */
+export async function evaluateTranscript({ role, turns }) {
+  const res = await fetch('/api/evaluate', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role, turns }),
+  });
+
+  if (!res.ok) {
+    let msg = `Evaluate API error ${res.status}`;
+    try {
+      const body = await res.json();
+      if (body?.error) msg = body.error;
+    } catch { /* non-JSON */ }
+    throw new Error(msg);
+  }
+
+  const data = await res.json();
+  if (!data?.evaluation) {
+    throw new Error('Unexpected response shape from /api/evaluate');
+  }
+  return data.evaluation;
 }

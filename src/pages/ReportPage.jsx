@@ -22,7 +22,7 @@ import React, { useMemo, useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate }        from 'react-router-dom';
 import { useMockMentor }      from '../context/MockMentorContext';
 import { getSavedSessions }   from '../tracking/sessionManager';
-import { rateTranscript }     from '../services/gemini';
+import { rateTranscript, evaluateTranscript } from '../services/gemini';
 import './ReportPage.css';
 
 /* ─────────────────────────────────────────────────────────
@@ -478,6 +478,157 @@ function FeedbackSection({ pairs, ratings, status, error }) {
 }
 
 /* ─────────────────────────────────────────────────────────
+   CommEvalSection — 4-dimension communication evaluation
+───────────────────────────────────────────────────────── */
+
+/**
+ * Metadata for the four evaluation dimensions — label, icon char, accent colour.
+ */
+const EVAL_DIMENSIONS = [
+  {
+    key:    'grammarClarity',
+    label:  'Grammar & Clarity',
+    icon:   'Aa',
+    color:  'var(--color-accent)',
+  },
+  {
+    key:    'answerStructure',
+    label:  'Answer Structure',
+    icon:   '≡',
+    color:  '#a78bfa',
+  },
+  {
+    key:    'relevance',
+    label:  'Relevance',
+    icon:   '◎',
+    color:  'var(--color-glow-teal)',
+  },
+  {
+    key:    'professionalTone',
+    label:  'Professional Tone',
+    icon:   '◈',
+    color:  'var(--color-success)',
+  },
+];
+
+/** Colour ramp shared with the answer-card score colour */
+function evalScoreColor(score) {
+  if (score >= 8) return 'var(--color-success)';
+  if (score >= 5) return '#f59e0b';
+  return 'var(--color-danger)';
+}
+
+/**
+ * Single evaluation dimension card — score ring + reason line.
+ */
+function EvalDimCard({ label, icon, accentColor, score, reason }) {
+  const scoreColor = evalScoreColor(score);
+  const radius     = 44;
+  const circ       = 2 * Math.PI * radius;
+  const offset     = circ - (score / 10) * circ;
+
+  return (
+    <div className="rp2-eval-card" style={{ '--eval-accent': accentColor }}>
+      {/* Mini ring */}
+      <div className="rp2-eval-ring" aria-hidden="true">
+        <svg width="108" height="108" viewBox="0 0 108 108"
+             style={{ transform: 'rotate(-90deg)' }}>
+          {/* track */}
+          <circle cx="54" cy="54" r={radius} fill="none"
+                  stroke="rgba(255,255,255,0.05)" strokeWidth="9" />
+          {/* glow */}
+          <circle cx="54" cy="54" r={radius} fill="none"
+                  stroke={scoreColor} strokeWidth="11" strokeLinecap="round"
+                  strokeDasharray={circ}
+                  className="rp2-eval-ring__glow"
+                  style={{ '--circ': circ, '--offset': offset,
+                           strokeDashoffset: offset, opacity: 0.22,
+                           filter: 'blur(3px)' }} />
+          {/* arc */}
+          <circle cx="54" cy="54" r={radius} fill="none"
+                  stroke={scoreColor} strokeWidth="9" strokeLinecap="round"
+                  strokeDasharray={circ}
+                  className="rp2-eval-ring__arc"
+                  style={{ '--circ': circ, '--offset': offset,
+                           strokeDashoffset: offset }} />
+        </svg>
+        {/* Centre */}
+        <div className="rp2-eval-ring__center">
+          <span className="rp2-eval-ring__score" style={{ color: scoreColor }}>
+            {score}
+          </span>
+          <span className="rp2-eval-ring__denom">/10</span>
+        </div>
+      </div>
+
+      {/* Label + icon */}
+      <div className="rp2-eval-card__meta">
+        <span className="rp2-eval-card__icon" style={{ color: accentColor }}
+              aria-hidden="true">{icon}</span>
+        <p className="rp2-eval-card__label">{label}</p>
+      </div>
+
+      {/* Reason */}
+      <p className="rp2-eval-card__reason">{reason}</p>
+    </div>
+  );
+}
+
+/**
+ * Full section: loading state → error → 4 evaluation cards in a row.
+ */
+function CommEvalSection({ pairs, evaluation, status, error }) {
+  if (pairs.length === 0) return null;
+
+  /* Compute overall average once ratings are available */
+  const avg = evaluation
+    ? +(Object.values(evaluation).reduce((s, d) => s + d.score, 0) / 4).toFixed(1)
+    : null;
+
+  return (
+    <section className="rp2-section" aria-labelledby="rp2-eval-heading">
+      <SectionHead
+        icon="◆"
+        title="Communication Evaluation"
+        badge={avg !== null ? `avg ${avg}/10` : null}
+      />
+
+      {status === 'loading' && (
+        <div className="rp2-feedback-loading" aria-label="Evaluating communication…">
+          <span className="rp2-feedback-loading__dot" />
+          <span className="rp2-feedback-loading__dot" />
+          <span className="rp2-feedback-loading__dot" />
+          <span className="rp2-feedback-loading__text">
+            Evaluating communication skills…
+          </span>
+        </div>
+      )}
+
+      {status === 'error' && (
+        <div className="rp2-feedback-error" role="alert">
+          <span aria-hidden="true">⚠</span> {error}
+        </div>
+      )}
+
+      {status === 'done' && evaluation && (
+        <div className="rp2-eval-grid">
+          {EVAL_DIMENSIONS.map(({ key, label, icon, color }) => (
+            <EvalDimCard
+              key={key}
+              label={label}
+              icon={icon}
+              accentColor={color}
+              score={evaluation[key].score}
+              reason={evaluation[key].reason}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
    SpeechStats — filler-word counts + WPM panel
 ───────────────────────────────────────────────────────── */
 
@@ -688,9 +839,31 @@ export default function ReportPage() {
     }
   }, [qaPairs, role]);
 
+  /* ── Communication evaluation (4 dimensions) ── */
+  const [evalStatus, setEvalStatus] = useState('idle');
+  const [evaluation, setEvaluation] = useState(null);
+  const [evalError,  setEvalError]  = useState('');
+
+  const fetchEvaluation = useCallback(async () => {
+    if (qaPairs.length === 0) return;
+    setEvalStatus('loading');
+    setEvalError('');
+    try {
+      const result = await evaluateTranscript({ role: role || 'General', turns: qaPairs });
+      setEvaluation(result);
+      setEvalStatus('done');
+    } catch (err) {
+      setEvalError(err.message ?? 'Failed to evaluate communication.');
+      setEvalStatus('error');
+    }
+  }, [qaPairs, role]);
+
   /* Auto-fetch once when the page mounts and there are Q&A pairs */
   useEffect(() => {
-    if (qaPairs.length > 0) fetchRatings();
+    if (qaPairs.length > 0) {
+      fetchRatings();
+      fetchEvaluation();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // run once on mount — qaPairs is stable after mount
 
@@ -814,7 +987,17 @@ export default function ReportPage() {
       <SpeechStats speech={speech} />
 
       {/* ══════════════════════════════════════════════════
-          5. SCORE RINGS
+          5. COMMUNICATION EVALUATION
+      ══════════════════════════════════════════════════ */}
+      <CommEvalSection
+        pairs={qaPairs}
+        evaluation={evaluation}
+        status={evalStatus}
+        error={evalError}
+      />
+
+      {/* ══════════════════════════════════════════════════
+          6. SCORE RINGS
       ══════════════════════════════════════════════════ */}
       {hasVision && (
         <section className="rp2-section" aria-labelledby="rp2-scores-heading">
