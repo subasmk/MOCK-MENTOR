@@ -25,7 +25,7 @@ Built for students who blank out in interviews. Practice until the fear is gone.
 ## Tech stack
 
 - **Frontend:** React + Vite
-- **AI:** OpenRouter (Gemma 4 31B free) (question generation, answer grading, communication evaluation)
+- **AI:** OpenRouter (free models with automatic fallback) (question generation, answer grading, communication evaluation)
 - **Vision:** face-api.js pre-trained expression models
 - **Voice:** Web Speech API (speech recognition + speechSynthesis)
 - **Backend:** Vercel serverless API routes (`api/interview.js`, `api/grade.js`, `api/evaluate.js`) — the OpenRouter key stays server-side in a `OPENROUTER_API_KEY` env var and never ships to the browser
