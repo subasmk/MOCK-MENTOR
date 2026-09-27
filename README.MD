@@ -8,7 +8,7 @@ Built for students who blank out in interviews. Practice until the fear is gone.
 
 ## Features
 
-- **Resume-based interviews** — paste your resume, pick a role (SDE, Data Analyst, Marketing, HR, Product), and Gemini asks 6 tailored questions with real follow-ups
+- **Resume-based interviews** — paste your resume, pick a role (SDE, Data Analyst, Marketing, HR, Product), and the AI interviewer asks 6 tailored questions with real follow-ups
 - **Pick your interviewer** — male, female, or robot avatar, each with its own voice, subtitles, and lip-sync animation
 - **Voice or typed answers** — speak naturally (Web Speech API) or type; the full transcript is saved
 - **Live confidence tracking** — face-api.js reads your expressions and eye contact through the webcam while you answer
@@ -25,16 +25,16 @@ Built for students who blank out in interviews. Practice until the fear is gone.
 ## Tech stack
 
 - **Frontend:** React + Vite
-- **AI:** Gemini 3.5 Flash (question generation, answer grading, communication evaluation)
+- **AI:** OpenRouter (Gemma 4 31B free) (question generation, answer grading, communication evaluation)
 - **Vision:** face-api.js pre-trained expression models
 - **Voice:** Web Speech API (speech recognition + speechSynthesis)
-- **Backend:** Vercel serverless API routes (`api/interview.js`, `api/grade.js`, `api/evaluate.js`) — the Gemini key stays server-side in a `GEMINI_KEY` env var and never ships to the browser
+- **Backend:** Vercel serverless API routes (`api/interview.js`, `api/grade.js`, `api/evaluate.js`) — the OpenRouter key stays server-side in a `OPENROUTER_API_KEY` env var and never ships to the browser
 
 ## Run it locally
 
 ```bash
 npm install
-echo "GEMINI_KEY=your-gemini-api-key" > .env
+echo "OPENROUTER_API_KEY=your-openrouter-api-key" > .env
 npx vercel dev        # serves the app + /api routes together
 ```
 
@@ -42,7 +42,7 @@ npx vercel dev        # serves the app + /api routes together
 
 ## Deploy
 
-Deploy to Vercel and set the `GEMINI_KEY` environment variable in the project settings. No other config needed.
+Deploy to Vercel and set the `OPENROUTER_API_KEY` environment variable in the project settings. Redeploy after adding the key. Free-model availability and rate limits can change; check the OpenRouter dashboard if requests fail.
 
 ## Built with IBM Bob
 
