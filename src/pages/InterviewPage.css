@@ -981,3 +981,94 @@
 }
 .iv-complete-dots span:nth-child(2) { animation-delay: 0.18s; }
 .iv-complete-dots span:nth-child(3) { animation-delay: 0.36s; }
+
+/* =========================================================
+   Avatar alive animations
+   — head bob (speaking), breathing glow (listening), mouth overlay
+   ========================================================= */
+
+/* ── Head bob / tilt while speaking ── */
+@keyframes avatarHeadBob {
+  0%   { transform: rotate(0deg)   translateY(0px); }
+  20%  { transform: rotate(1.8deg) translateY(-2px); }
+  45%  { transform: rotate(-1.5deg) translateY(1px); }
+  65%  { transform: rotate(2.2deg) translateY(-1px); }
+  85%  { transform: rotate(-1deg) translateY(0px); }
+  100% { transform: rotate(0deg)   translateY(0px); }
+}
+
+.iv-avatar-img--speaking {
+  animation: avatarHeadBob 2.4s ease-in-out infinite;
+  transform-origin: center bottom;   /* bob from the neck, not the top */
+}
+
+/* ── Breathing / glow while listening ── */
+@keyframes avatarBreathe {
+  0%, 100% { transform: scale(1.00); filter: drop-shadow(0 8px 32px rgba(0,0,0,0.5)) brightness(1.00); }
+  50%       { transform: scale(1.02); filter: drop-shadow(0 8px 32px rgba(0,0,0,0.5)) brightness(1.06) drop-shadow(0 0 14px rgba(0,229,255,0.22)); }
+}
+
+.iv-avatar-img--listening {
+  animation: avatarBreathe 3.2s ease-in-out infinite;
+  transform-origin: center center;
+}
+
+/* Per-accent breathing glow colour overrides */
+.iv-tile--violet .iv-avatar-img--listening {
+  animation-name: avatarBreatheViolet;
+}
+@keyframes avatarBreatheViolet {
+  0%, 100% { transform: scale(1.00); filter: drop-shadow(0 8px 32px rgba(0,0,0,0.5)) brightness(1.00); }
+  50%       { transform: scale(1.02); filter: drop-shadow(0 8px 32px rgba(0,0,0,0.5)) brightness(1.06) drop-shadow(0 0 14px rgba(124,58,237,0.28)); }
+}
+
+.iv-tile--teal .iv-avatar-img--listening {
+  animation-name: avatarBreatheTeal;
+}
+@keyframes avatarBreatheTeal {
+  0%, 100% { transform: scale(1.00); filter: drop-shadow(0 8px 32px rgba(0,0,0,0.5)) brightness(1.00); }
+  50%       { transform: scale(1.02); filter: drop-shadow(0 8px 32px rgba(0,0,0,0.5)) brightness(1.06) drop-shadow(0 0 14px rgba(6,182,212,0.28)); }
+}
+
+/* Listening tile — soft glow ring on the tile itself */
+.iv-tile--cyan.iv-tile--listening {
+  border-color: rgba(0, 229, 255, 0.3);
+  box-shadow: 0 0 0 1px rgba(0,229,255,0.1), 0 0 24px rgba(0,229,255,0.08);
+}
+.iv-tile--violet.iv-tile--listening {
+  border-color: rgba(124,58,237,0.3);
+  box-shadow: 0 0 0 1px rgba(124,58,237,0.12), 0 0 24px rgba(124,58,237,0.08);
+}
+.iv-tile--teal.iv-tile--listening {
+  border-color: rgba(6,182,212,0.3);
+  box-shadow: 0 0 0 1px rgba(6,182,212,0.12), 0 0 24px rgba(6,182,212,0.08);
+}
+
+/* ── Mouth overlay ── */
+/*
+  Positioned at the lower ~32% of the avatar circle.
+  A flat ellipse that scaleY-expands on --open to simulate mouth movement.
+  Uses a semi-transparent dark colour so it reads on any avatar skin tone.
+*/
+.iv-avatar-mouth {
+  position: absolute;
+  /* Centre horizontally; sit at ~64% from top of the avatar circle */
+  left: 50%;
+  top:  64%;
+  transform: translate(-50%, -50%) scaleY(0.18);
+  transform-origin: center center;
+  width:  30%;          /* ~30% of avatar width */
+  height: 10%;          /* tall enough to be visible when open */
+  border-radius: 50%;
+  background: rgba(10, 8, 18, 0.72);
+  pointer-events: none;
+  z-index: 2;           /* above avatar image (z-index 1), below scanline (z-index 2) — same layer is fine */
+  transition: transform 60ms linear, background 60ms linear;
+  /* Subtle inner shadow to give depth */
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.iv-avatar-mouth--open {
+  transform: translate(-50%, -50%) scaleY(1);
+  background: rgba(6, 4, 14, 0.82);
+}

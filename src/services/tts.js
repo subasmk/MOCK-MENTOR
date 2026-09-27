@@ -167,7 +167,7 @@ export function pickVoice(avatarId) {
  * @param {Function} [params.onError] - called on synthesis error
  * @returns {SpeechSynthesisUtterance|null}
  */
-export function speakText({ text, avatarId, onStart, onEnd, onError }) {
+export function speakText({ text, avatarId, onStart, onEnd, onError, onBoundary }) {
   if (!TTS_SUPPORTED || !text) {
     /* No TTS support — fire onEnd immediately so the STT flow still triggers */
     onEnd?.();
@@ -190,9 +190,10 @@ export function speakText({ text, avatarId, onStart, onEnd, onError }) {
   if (voice) utterance.voice = voice;
 
   /* Callbacks */
-  utterance.onstart  = () => onStart?.();
-  utterance.onend    = () => onEnd?.();
-  utterance.onerror  = (e) => {
+  utterance.onstart    = () => onStart?.();
+  utterance.onend      = () => onEnd?.();
+  utterance.onboundary = (e) => onBoundary?.(e);
+  utterance.onerror    = (e) => {
     /* 'interrupted' is not a real error — it means cancel() was called */
     if (e.error === 'interrupted' || e.error === 'canceled') {
       onEnd?.();

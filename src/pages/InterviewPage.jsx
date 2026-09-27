@@ -127,10 +127,66 @@ export default function InterviewPage() {
   const [isDone,        setIsDone]        = useState(false); // 6 questions complete
   const [reprompt,      setReprompt]      = useState(false); // "didn't catch that" flag
   const [showComplete,  setShowComplete]  = useState(false); // completion overlay
+  const [mouthOpen,     setMouthOpen]     = useState(false); // mouth overlay open/close
 
   /* Text input fallback */
   const [inputText, setInputText] = useState('');
   const inputRef = useRef(null);
+
+  /* ── Avatar mouth animation refs ── */
+  const mouthIntervalRef  = useRef(null);  // fallback random-interval timer
+  const hasBoundaryRef    = useRef(false); // true once browser fires a boundary event
+  const mouthTimeoutRef   = useRef(null);  // per-word close delay
+
+  /** Stop all mouth animation timers and close the mouth. */
+  const stopMouthAnim = useCallback(() => {
+    /* Both the chained-setTimeout fallback and the per-word close use setTimeout IDs */
+    clearTimeout(mouthIntervalRef.current);
+    clearTimeout(mouthTimeoutRef.current);
+    mouthIntervalRef.current = null;
+    mouthTimeoutRef.current  = null;
+    hasBoundaryRef.current   = false;
+    setMouthOpen(false);
+  }, []);
+
+  /**
+   * Called on each speechSynthesis `boundary` event (word/sentence).
+   * Opens the mouth briefly, then closes it.  On first call, cancels the
+   * random-interval fallback so boundary events drive the animation instead.
+   */
+  const handleBoundary = useCallback((e) => {
+    if (e.name !== 'word') return;          // ignore sentence boundaries
+    if (!hasBoundaryRef.current) {
+      /* First boundary event — kill the fallback chained setTimeout */
+      hasBoundaryRef.current = true;
+      clearTimeout(mouthIntervalRef.current);
+      mouthIntervalRef.current = null;
+    }
+    /* Open mouth for roughly the duration of the word (~120-180 ms) */
+    clearTimeout(mouthTimeoutRef.current);
+    setMouthOpen(true);
+    mouthTimeoutRef.current = setTimeout(() => setMouthOpen(false), 140);
+  }, []);
+
+  /**
+   * Start the random-interval fallback mouth animation.
+   * Used when `speechSynthesis` does not fire `boundary` events.
+   */
+  const startMouthFallback = useCallback(() => {
+    hasBoundaryRef.current = false;
+    clearTimeout(mouthIntervalRef.current);
+
+    let open = false;
+    /* Schedule the first tick immediately, subsequent ones at random intervals */
+    const tick = () => {
+      open = !open;
+      setMouthOpen(open);
+      /* Next flip: 100-250 ms — random natural cadence */
+      const delay = 100 + Math.random() * 150;
+      mouthIntervalRef.current = setTimeout(tick, delay);
+    };
+    mouthIntervalRef.current = setTimeout(tick, 80);
+  }, []);
 
   /* ─────────────────────────────────────────────────────
      Webcam
@@ -351,10 +407,13 @@ export default function InterviewPage() {
          then navigate to /report after a 2.5 s transition.
       ─────────────────────────────────────────────────── */
       setIsSpeaking(true);
+      startMouthFallback();          // start fallback; boundary events will take over if supported
       speakText({
         text:     reply,
         avatarId: avatar,
+        onBoundary: handleBoundary,
         onEnd: () => {
+          stopMouthAnim();
           setIsSpeaking(false);
           if (sessionEnded) {
             /* Show "Interview complete" overlay, then go to report */
@@ -367,7 +426,10 @@ export default function InterviewPage() {
             }, 2500);
           }
         },
-        onError: () => setIsSpeaking(false),
+        onError: () => {
+          stopMouthAnim();
+          setIsSpeaking(false);
+        },
       });
 
     } catch (err) {
@@ -376,7 +438,7 @@ export default function InterviewPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [resumeText, role, avatar, addTurn]);
+  }, [resumeText, role, avatar, addTurn, startMouthFallback, handleBoundary, stopMouthAnim]);
 
   /* Keep the stable ref current */
   useEffect(() => { sendToGeminiRef.current = sendToGemini; }, [sendToGemini]);
@@ -420,6 +482,7 @@ export default function InterviewPage() {
       stopWebcam();
       stopListening('unmount');
       cancelSpeech();               // stop TTS if component unmounts mid-sentence
+      stopMouthAnim();              // clear mouth timers
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -470,6 +533,7 @@ export default function InterviewPage() {
   function handleEndSession() {
     clearInterval(timerRef.current);
     cancelSpeech();
+    stopMouthAnim();           // stop mouth immediately when speech is cancelled
     stopListening('end');
     stopWebcam();
     navigate('/report');
@@ -570,14 +634,32 @@ export default function InterviewPage() {
           className={[
             'iv-tile iv-tile--interviewer',
             `iv-tile--${interviewer.accent}`,
-            isSpeaking ? 'iv-tile--speaking' : '',
+            isSpeaking  ? 'iv-tile--speaking'  : '',
+            isListening ? 'iv-tile--listening'  : '',
           ].join(' ')}
           aria-label={`Interviewer: ${interviewer.name}`}
         >
           <div className="iv-avatar-frame">
             <div className="iv-avatar-ring iv-avatar-ring--outer" aria-hidden="true" />
             <div className="iv-avatar-ring iv-avatar-ring--inner" aria-hidden="true" />
-            <img src={interviewer.src} alt={interviewer.name} className="iv-avatar-img" draggable={false} />
+            {/* Avatar image — state-driven CSS animation class drives head bob / breathing */}
+            <img
+              src={interviewer.src}
+              alt={interviewer.name}
+              className={[
+                'iv-avatar-img',
+                isSpeaking  ? 'iv-avatar-img--speaking'  : '',
+                isListening ? 'iv-avatar-img--listening'  : '',
+              ].join(' ')}
+              draggable={false}
+            />
+            {/* Mouth overlay — only rendered while speaking */}
+            {isSpeaking && (
+              <div
+                className={`iv-avatar-mouth${mouthOpen ? ' iv-avatar-mouth--open' : ''}`}
+                aria-hidden="true"
+              />
+            )}
           </div>
 
           <div className="iv-tile__hud">
