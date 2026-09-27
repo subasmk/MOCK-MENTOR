@@ -14,10 +14,10 @@
  *
  *   evaluateTranscript({ role, turns })
  *     → Promise<{
- *         grammarClarity:   { score: number, reason: string },
- *         answerStructure:  { score: number, reason: string },
- *         relevance:        { score: number, reason: string },
- *         professionalTone: { score: number, reason: string },
+ *         grammarClarity:   { score: number, reason: string, tip: string },
+ *         answerStructure:  { score: number, reason: string, tip: string },
+ *         relevance:        { score: number, reason: string, tip: string },
+ *         professionalTone: { score: number, reason: string, tip: string },
  *       }>
  *
  *   `turns` shape:  Array<{ question: string, answer: string }>
@@ -108,10 +108,10 @@ export async function rateTranscript({ role, turns }) {
  * @param {string}  params.role   Target job role
  * @param {Array<{question:string, answer:string}>} params.turns
  * @returns {Promise<{
- *   grammarClarity:   {score:number, reason:string},
- *   answerStructure:  {score:number, reason:string},
- *   relevance:        {score:number, reason:string},
- *   professionalTone: {score:number, reason:string},
+ *   grammarClarity:   {score:number, reason:string, tip:string},
+ *   answerStructure:  {score:number, reason:string, tip:string},
+ *   relevance:        {score:number, reason:string, tip:string},
+ *   professionalTone: {score:number, reason:string, tip:string},
  * }>}
  */
 export async function evaluateTranscript({ role, turns }) {

@@ -1184,3 +1184,93 @@
   width: 100%;
   text-align: center;
 }
+
+/* ═══════════════════════════════════════════════════════
+   PRIORITY IMPROVEMENTS
+═══════════════════════════════════════════════════════ */
+.rp2-improve-list {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: improve;
+}
+.rp2-improve-item {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: var(--space-md);
+  align-items: start;
+  padding: var(--space-md) var(--space-lg);
+  background: linear-gradient(100deg, rgba(13, 27, 56, 0.72), rgba(13, 27, 56, 0.38));
+  border: 1px solid var(--color-border);
+  border-left: 2px solid var(--improve-accent, var(--color-accent));
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  transition: border-color 0.2s, transform 0.2s, background 0.2s;
+}
+.rp2-improve-item:hover {
+  border-color: rgba(0, 229, 255, 0.3);
+  transform: translateX(3px);
+  background: linear-gradient(100deg, rgba(13, 27, 56, 0.88), rgba(13, 27, 56, 0.48));
+}
+.rp2-improve-item__number {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  aspect-ratio: 1;
+  border: 1px solid color-mix(in srgb, var(--improve-accent, var(--color-accent)) 28%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--improve-accent, var(--color-accent)) 8%, transparent);
+  color: var(--improve-accent, var(--color-accent));
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.rp2-improve-item__content {
+  min-width: 0;
+}
+.rp2-improve-item__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+.rp2-improve-item__dimension {
+  color: var(--color-text);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.rp2-improve-item__score {
+  flex-shrink: 0;
+  color: var(--color-danger);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.rp2-improve-item__score span {
+  color: var(--color-text-dim);
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+.rp2-improve-item__tip {
+  margin: 6px 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 500px) {
+  .rp2-improve-item {
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: var(--space-sm);
+    padding: var(--space-md);
+  }
+  .rp2-improve-item__dimension {
+    font-size: 0.68rem;
+  }
+}

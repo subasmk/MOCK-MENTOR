@@ -4,7 +4,7 @@
  * Vercel Serverless Function  —  POST /api/evaluate
  *
  * Evaluates the whole interview transcript on four communication dimensions
- * and returns a score + one-line reason for each.
+ * and returns a score, one-line reason, and actionable tip for each.
  *
  * ── Request body (JSON) ───────────────────────────────────
  *   {
@@ -15,10 +15,10 @@
  * ── Response (JSON) ───────────────────────────────────────
  *   200  {
  *     evaluation: {
- *       grammarClarity:     { score: number, reason: string },
- *       answerStructure:    { score: number, reason: string },
- *       relevance:          { score: number, reason: string },
- *       professionalTone:   { score: number, reason: string },
+ *       grammarClarity:     { score: number, reason: string, tip: string },
+ *       answerStructure:    { score: number, reason: string, tip: string },
+ *       relevance:          { score: number, reason: string, tip: string },
+ *       professionalTone:   { score: number, reason: string, tip: string },
  *     }
  *   }
  *   400 / 405 / 500  { error: string }
@@ -42,15 +42,19 @@ function buildPrompt(role, turns) {
     `Evaluate the CANDIDATE's answers across exactly four dimensions. ` +
     `For each dimension give:\n` +
     `  "score"  — integer 1 (very poor) to 10 (excellent), based on ALL answers combined\n` +
-    `  "reason" — ONE sentence (max 20 words) that explains the score concisely\n\n` +
+    `  "reason" — ONE sentence (max 20 words) that explains the score concisely\n` +
+    `  "tip"    — ONE concrete, actionable improvement (max 25 words) tailored to the candidate's answers\n\n` +
+    `Make each tip address the specific weakness reflected in its score. Avoid repeating the reason.\n\n` +
     `The four dimensions and their keys:\n` +
     `  grammarClarity   — correctness of grammar, vocabulary, and clarity of expression\n` +
     `  answerStructure  — whether answers are organised (e.g. STAR, intro-body-close)\n` +
     `  relevance        — how well answers address the question and stay on-topic\n` +
     `  professionalTone — appropriateness of language, confidence, and formal register\n\n` +
     `Output ONLY valid JSON matching this shape exactly (no markdown, no extra keys):\n` +
-    `{"grammarClarity":{"score":8,"reason":"..."},"answerStructure":{"score":6,"reason":"..."},` +
-    `"relevance":{"score":7,"reason":"..."},"professionalTone":{"score":9,"reason":"..."}}`
+    `{"grammarClarity":{"score":8,"reason":"...","tip":"..."},` +
+    `"answerStructure":{"score":6,"reason":"...","tip":"..."},` +
+    `"relevance":{"score":7,"reason":"...","tip":"..."},` +
+    `"professionalTone":{"score":9,"reason":"...","tip":"..."}}`
   );
 }
 
@@ -65,9 +69,12 @@ function parseEvaluation(raw) {
   const result = {};
   for (const key of REQUIRED_KEYS) {
     if (!obj[key]) throw new Error(`Missing dimension: ${key}`);
+    const tip = String(obj[key].tip ?? '').trim();
+    if (!tip) throw new Error(`Missing improvement tip: ${key}`);
     result[key] = {
       score:  Math.min(10, Math.max(1, Math.round(Number(obj[key].score)))),
       reason: String(obj[key].reason ?? '').trim(),
+      tip,
     };
   }
   return result;

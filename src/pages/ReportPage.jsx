@@ -433,6 +433,7 @@ function FeedbackSection({ pairs, ratings, status, error }) {
       <SectionHead
         icon="★"
         title="Answer Ratings"
+        id="rp2-feedback-heading"
         badge={
           status === 'done'
             ? `avg ${(ratings.reduce((s, r) => s + r.score, 0) / ratings.length).toFixed(1)}/10`
@@ -590,6 +591,7 @@ function CommEvalSection({ pairs, evaluation, status, error }) {
       <SectionHead
         icon="◆"
         title="Communication Evaluation"
+        id="rp2-eval-heading"
         badge={avg !== null ? `avg ${avg}/10` : null}
       />
 
@@ -623,6 +625,70 @@ function CommEvalSection({ pairs, evaluation, status, error }) {
             />
           ))}
         </div>
+      )}
+    </section>
+  );
+}
+
+function ImprovementSection({ pairs, evaluation, status, error }) {
+  if (pairs.length === 0) return null;
+
+  const priorities = evaluation
+    ? EVAL_DIMENSIONS
+        .map(({ key, label, color }) => ({ ...evaluation[key], key, label, color }))
+        .sort((a, b) => a.score - b.score)
+        .slice(0, 3)
+    : [];
+
+  return (
+    <section className="rp2-section" aria-labelledby="rp2-improve-heading">
+      <SectionHead
+        icon="↗"
+        title="What to Improve"
+        id="rp2-improve-heading"
+        badge={status === 'done' ? '3 lowest scores' : null}
+      />
+
+      {status === 'loading' && (
+        <div className="rp2-feedback-loading" aria-label="Preparing improvement tips…">
+          <span className="rp2-feedback-loading__dot" />
+          <span className="rp2-feedback-loading__dot" />
+          <span className="rp2-feedback-loading__dot" />
+          <span className="rp2-feedback-loading__text">
+            Finding your highest-impact improvements…
+          </span>
+        </div>
+      )}
+
+      {status === 'error' && (
+        <div className="rp2-feedback-error" role="alert">
+          <span aria-hidden="true">⚠</span> {error}
+        </div>
+      )}
+
+      {status === 'done' && priorities.length > 0 && (
+        <ol className="rp2-improve-list" aria-label="Three lowest-scoring communication areas">
+          {priorities.map(({ key, label, score, tip, color }, index) => (
+            <li
+              className="rp2-improve-item"
+              key={key}
+              style={{ '--improve-accent': color }}
+            >
+              <span className="rp2-improve-item__number" aria-hidden="true">
+                0{index + 1}
+              </span>
+              <div className="rp2-improve-item__content">
+                <div className="rp2-improve-item__meta">
+                  <span className="rp2-improve-item__dimension">{label}</span>
+                  <span className="rp2-improve-item__score" style={{ color: evalScoreColor(score) }}>
+                    {score}<span>/10</span>
+                  </span>
+                </div>
+                <p className="rp2-improve-item__tip">{tip}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
       )}
     </section>
   );
@@ -677,6 +743,7 @@ function SpeechStats({ speech }) {
       <SectionHead
         icon="◈"
         title="Speech Analysis"
+        id="rp2-speech-heading"
         badge={`${totalWords} words`}
       />
 
@@ -751,10 +818,10 @@ function SpeechStats({ speech }) {
 /* ─────────────────────────────────────────────────────────
    SectionHead — labelled section header
 ───────────────────────────────────────────────────────── */
-function SectionHead({ icon, title, badge }) {
+function SectionHead({ icon, title, badge, id }) {
   return (
     <div className="rp2-section__head">
-      <h2 className="rp2-section__title">
+      <h2 className="rp2-section__title" id={id}>
         <span className="rp2-section__title-icon" aria-hidden="true">{icon}</span>
         {title}
       </h2>
@@ -990,6 +1057,13 @@ export default function ReportPage() {
           5. COMMUNICATION EVALUATION
       ══════════════════════════════════════════════════ */}
       <CommEvalSection
+        pairs={qaPairs}
+        evaluation={evaluation}
+        status={evalStatus}
+        error={evalError}
+      />
+
+      <ImprovementSection
         pairs={qaPairs}
         evaluation={evaluation}
         status={evalStatus}
