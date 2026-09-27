@@ -9,7 +9,7 @@ Built for students who blank out in interviews. Practice until the fear is gone.
 ## Features
 
 - **Resume-based interviews** — paste your resume, pick a role (SDE, Data Analyst, Marketing, HR, Product), and the AI interviewer asks 6 tailored questions with real follow-ups
-- **Pick your interviewer** — male, female, or robot avatar, each with its own voice, subtitles, and lip-sync animation
+- **Pick your interviewer** — male, female, or robot, each rendered as an animated 3D talking avatar (TalkingHead/Three.js) that lip-syncs in real time to the interviewer's voice, with its own voice and subtitles
 - **Voice or typed answers** — speak naturally (Web Speech API) or type; the full transcript is saved
 - **Live confidence tracking** — face-api.js reads your expressions and eye contact through the webcam while you answer
 - **Scored report** — per-answer ratings, communication evaluation (filler words, pace, clarity), speech analysis, and concrete tips on what to improve
@@ -28,6 +28,7 @@ Built for students who blank out in interviews. Practice until the fear is gone.
 - **AI:** OpenRouter (free models with automatic fallback) (question generation, answer grading, communication evaluation)
 - **Vision:** face-api.js pre-trained expression models
 - **Voice:** Web Speech API (speech recognition + speechSynthesis)
+- **Avatar:** [TalkingHead](https://github.com/met4citizen/TalkingHead) (Three.js/WebGL) — pre-rigged 3D avatars with real-time viseme lip-sync, loaded from CDN; static avatar images remain as fallback
 - **Backend:** Vercel serverless API routes (`api/interview.js`, `api/grade.js`, `api/evaluate.js`) — the OpenRouter key stays server-side in a `OPENROUTER_API_KEY` env var and never ships to the browser
 
 ## Run it locally
