@@ -165,7 +165,13 @@ export default async function handler(req, res) {
   }
 
   const data = await geminiRes.json();
-  const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+  const rawReply = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+  /* Strip any leaked Gemini thinking artifacts before the text is shown or spoken */
+  const reply = rawReply
+    ?.replace(/<thought>[\s\S]*?(<\/thought>|$)/gi, '')
+    .replace(/<\/?thought>/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 
   if (!reply) {
     return res.status(502).json({
