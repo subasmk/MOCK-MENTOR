@@ -9,10 +9,11 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 
-import Layout       from './components/Layout';
-import SetupPage    from './pages/SetupPage';
+import Layout        from './components/Layout';
+import SetupPage     from './pages/SetupPage';
 import InterviewPage from './pages/InterviewPage';
-import ReportPage   from './pages/ReportPage';
+import ReportPage    from './pages/ReportPage';
+import VisionPage    from './pages/VisionPage';
 
 export default function App() {
   return (
@@ -29,6 +30,9 @@ export default function App() {
 
         {/* Post-interview report */}
         <Route path="/report" element={<ReportPage />} />
+
+        {/* Real-time facial CV dashboard */}
+        <Route path="/vision" element={<VisionPage />} />
 
         {/* Catch-all */}
         <Route path="*" element={<Navigate to="/setup" replace />} />

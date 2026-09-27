@@ -5,6 +5,24 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
 
+  build: {
+    /**
+     * Keep face-api.js (and its heavy TensorFlow.js deps) in its own chunk.
+     * Without this Rollup tries to transform the whole ~5 MB library in a
+     * single pass and exhausts the default Node.js heap.
+     */
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('face-api.js') || id.includes('@tensorflow')) {
+            return 'face-api';
+          }
+        },
+      },
+    },
+    chunkSizeWarningLimit: 2000,
+  },
+
   server: {
     /**
      * Dev proxy — forwards /api/* to a local Vercel dev server or any

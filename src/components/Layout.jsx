@@ -42,6 +42,7 @@ export default function Layout({ children }) {
           <nav className="navbar__nav" aria-label="Primary navigation">
             <Link to="/setup"     className={navClass('/setup')}>Setup</Link>
             <Link to="/interview" className={navClass('/interview')}>Interview</Link>
+            <Link to="/vision"    className={navClass('/vision')}>Vision</Link>
           </nav>
         </div>
       </header>
