@@ -1,8 +1,8 @@
 /**
- * gemini.js  —  frontend client for the Gemini serverless routes
+ * gemini.js  —  frontend client for the OpenRouter-backed serverless routes
  *
- * The Gemini API key lives exclusively on the server (Vercel environment
- * variable GEMINI_KEY). This module never touches the key.
+ * The OpenRouter API key lives exclusively on the server (Vercel environment
+ * variable OPENROUTER_API_KEY). This module never touches the key.
  *
  * Exports
  * ───────
