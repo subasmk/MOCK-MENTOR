@@ -6,13 +6,13 @@
   "framework": "vite",
   "functions": {
     "api/interview.js": {
-      "maxDuration": 30
+      "maxDuration": 60
     },
     "api/grade.js": {
-      "maxDuration": 30
+      "maxDuration": 60
     },
     "api/evaluate.js": {
-      "maxDuration": 30
+      "maxDuration": 60
     }
   },
   "rewrites": [
