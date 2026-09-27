@@ -25,6 +25,7 @@ import React, {
   useCallback,
   useEffect,
 } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { startTracking, stopTracking, loadModels } from '../tracking/faceTracker';
 import { createSession }                            from '../tracking/sessionManager';

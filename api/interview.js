@@ -24,11 +24,11 @@
  *   500  { error: string }   upstream Gemini error
  *
  * ── Model ───────────────────────────────────────────────
- *   gemini-2.0-flash  (swap GEMINI_MODEL below if you need a different model;
- *                     gemini-1.5-flash also works for lower quota usage)
+ *   gemini-3.5-flash  (swap GEMINI_MODEL below if you need a different model;
+ *                     gemini-3.5-flash-lite also works for lower quota usage)
  */
 
-const GEMINI_MODEL = 'gemini-2.0-flash';
+const GEMINI_MODEL = 'gemini-3.5-flash';
 const GEMINI_URL   =
   `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 

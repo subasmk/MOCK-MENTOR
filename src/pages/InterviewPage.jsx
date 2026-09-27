@@ -52,9 +52,9 @@ import './InterviewPage.css';
    Constants
 ───────────────────────────────────────────────────────── */
 const INTERVIEWER_MAP = {
-  male:   { name: 'Alex Turner', tag: 'Technical Lead',  src: '/avatars/interviewer-male.svg',   accent: 'cyan'   },
-  female: { name: 'Priya Nair',  tag: 'Hiring Manager',  src: '/avatars/interviewer-female.svg', accent: 'violet' },
-  robot:  { name: 'ARIA-7',      tag: 'AI Evaluator',    src: '/avatars/interviewer-robot.svg',  accent: 'teal'   },
+  male:   { name: 'Alex Turner', tag: 'Technical Lead',  src: '/avatars/interviewer-male.png',   accent: 'cyan'   },
+  female: { name: 'Priya Nair',  tag: 'Hiring Manager',  src: '/avatars/interviewer-female.png', accent: 'violet' },
+  robot:  { name: 'ARIA-7',      tag: 'AI Evaluator',    src: '/avatars/interviewer-robot.png',  accent: 'teal'   },
 };
 
 /** Sentinel sent as the first user turn to kick off question 1. */

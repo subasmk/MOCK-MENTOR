@@ -35,21 +35,21 @@ const ROLES = [
 const INTERVIEWERS = [
   {
     id:       'male',
-    avatar:   '/avatars/interviewer-male.svg',
+    avatar:   '/avatars/interviewer-male.png',
     name:     'Alex Turner',
     tag:      'Technical Lead',
     accent:   'cyan',          // drives CSS modifier
   },
   {
     id:       'female',
-    avatar:   '/avatars/interviewer-female.svg',
+    avatar:   '/avatars/interviewer-female.png',
     name:     'Priya Nair',
     tag:      'Hiring Manager',
     accent:   'violet',
   },
   {
     id:       'robot',
-    avatar:   '/avatars/interviewer-robot.svg',
+    avatar:   '/avatars/interviewer-robot.png',
     name:     'ARIA-7',
     tag:      'AI Evaluator',
     accent:   'teal',
