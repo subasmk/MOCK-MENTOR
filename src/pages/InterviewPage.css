@@ -1058,8 +1058,10 @@
   pointer-events: none;
   overflow: hidden;
   border-radius: 50%;
+  animation: avatarHeadBob 2.4s ease-in-out infinite;
+  transform-origin: center bottom;
 }
-.iv-avatar-lips--male { --mouth-x: 49%; --mouth-y: 28%; --mouth-w: 8%; --mouth-h: 2.8%; }
+.iv-avatar-lips--male { --mouth-x: 49%; --mouth-y: 34%; --mouth-w: 9%; --mouth-h: 3%; }
 .iv-avatar-lips--female { --mouth-x: 51%; --mouth-y: 34%; --mouth-w: 8%; --mouth-h: 2.8%; }
 .iv-avatar-lips--robot { --mouth-x: 50%; --mouth-y: 63%; --mouth-w: 14%; --mouth-h: 5%; }
 .iv-avatar-lips__image {
@@ -1084,5 +1086,6 @@
   .iv-tile--speaking .iv-avatar-ring, .iv-tile--listening .iv-avatar-ring {
     animation: none;
   }
+  .iv-avatar-lips { animation: none; }
   .iv-avatar-lips__image { transition: none; }
 }
