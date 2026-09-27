@@ -1,26 +1,20 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "installCommand": "npm install",
   "framework": "vite",
-
   "functions": {
     "api/interview.js": {
-      "runtime": "nodejs20.x",
       "maxDuration": 30
     },
     "api/grade.js": {
-      "runtime": "nodejs20.x",
       "maxDuration": 30
     },
     "api/evaluate.js": {
-      "runtime": "nodejs20.x",
       "maxDuration": 30
     }
   },
-
   "rewrites": [
     {
       "source": "/api/:path*",
