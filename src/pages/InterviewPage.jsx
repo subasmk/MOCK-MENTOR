@@ -276,23 +276,36 @@ export default function InterviewPage() {
     rec.lang            = 'en-US';
     rec.maxAlternatives = 1;
     rec._intentionallyStopped = false;
+    /* Own result cursor — some browsers (notably Android Chrome) misreport
+       event.resultIndex, which re-appends old results and duplicates text. */
+    rec._processedCount = 0;
 
     /* ── onresult: accumulate words + reset silence timer ── */
     rec.onresult = (event) => {
       let interim = '';
       let finalChunk = '';
 
-      for (let i = event.resultIndex; i < event.results.length; i++) {
+      /* Only consume results we have not processed yet. Interim results sit at
+         the current index and are replaced by later events, so the cursor only
+         advances past FINAL results. */
+      for (let i = rec._processedCount; i < event.results.length; i++) {
         const result = event.results[i];
         if (result.isFinal) {
           finalChunk += result[0].transcript;
+          rec._processedCount = i + 1;
         } else {
-          interim += result[0].transcript;
+          /* Latest interim snapshot replaces the previous one (never appended) */
+          interim = result[0].transcript;
         }
       }
 
       if (finalChunk) {
-        finalTranscriptRef.current += finalChunk;
+        const acc = finalTranscriptRef.current;
+        const chunk = finalChunk.trim();
+        /* Join with a single space so words never fuse together */
+        finalTranscriptRef.current = acc && chunk && !/\s$/.test(acc)
+          ? acc + ' ' + chunk
+          : acc + chunk;
       }
 
       /* Show live interim in subtitle bar */
@@ -336,7 +349,9 @@ export default function InterviewPage() {
     /* ── onend: restart only if not intentionally stopped ── */
     rec.onend = () => {
       if (rec._intentionallyStopped) return;
-      /* Browser stopped on its own (e.g. timeout) — restart if still listening */
+      /* Browser stopped on its own (e.g. timeout) — restart if still listening.
+         A restarted session returns a fresh results list, so reset the cursor. */
+      rec._processedCount = 0;
       if (listenStateRef.current === 'listening') {
         try { rec.start(); } catch { /* may throw if already started */ }
       }
@@ -872,4 +887,4 @@ export default function InterviewPage() {
       </footer>
     </div>
   );
-}
+              }
