@@ -3,8 +3,8 @@
  *
  * Vercel Serverless Function  —  POST /api/interview
  *
- * Keeps the Gemini API key server-side so it is never shipped to the browser.
- * The key is stored as the environment variable GEMINI_KEY in the Vercel
+ * Keeps the OpenRouter API key server-side so it is never shipped to the browser.
+ * The key is stored as the environment variable OPENROUTER_API_KEY in the Vercel
  * project dashboard (Settings → Environment Variables). It is never committed
  * to the repository.
  *
@@ -13,7 +13,7 @@
  *     resume:  string   — plain-text résumé of the candidate
  *     role:    string   — target job role (e.g. "SDE")
  *     history: Array<{ role: "user"|"model", parts: [{ text: string }] }>
- *              — Gemini-format conversation history BEFORE this turn
+ *              — legacy frontend conversation history BEFORE this turn
  *     answer:  string   — candidate's answer / "__START_INTERVIEW__" sentinel
  *   }
  *
@@ -21,16 +21,13 @@
  *   200  { reply: string }
  *   400  { error: string }   bad request
  *   405  { error: string }   method not allowed
- *   500  { error: string }   upstream Gemini error
+ *   500  { error: string }   upstream model error
  *
  * ── Model ───────────────────────────────────────────────
- *   gemini-3.5-flash  (swap GEMINI_MODEL below if you need a different model;
- *                     gemini-3.5-flash-lite also works for lower quota usage)
- */
+ *   google/gemma-4-31b-it:free (verify free availability before changing) */
 
-const GEMINI_MODEL = 'gemini-3.5-flash';
-const GEMINI_URL   =
-  `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+const OPENROUTER_MODEL = 'google/gemma-4-31b-it:free';
+const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 /* ─────────────────────────────────────────────────────────
    System instruction
@@ -72,14 +69,14 @@ function buildSystemInstruction(resume, role) {
    Handler
 ───────────────────────────────────────────────────────── */
 
-/* Retry with backoff on Gemini free-tier rate limits (429) and demand spikes (503). */
+/* Retry with backoff on OpenRouter free-tier rate limits (429) and demand spikes (503). */
 async function fetchWithRetry(url, options) {
   const RETRY_DELAYS_MS = [2000, 4000, 8000];
   for (let attempt = 0; ; attempt++) {
-    const geminiRes = await fetch(url, options);
-    if (geminiRes.ok || attempt >= RETRY_DELAYS_MS.length ||
-        (geminiRes.status !== 429 && geminiRes.status !== 503)) {
-      return geminiRes;
+    const upstreamRes = await fetch(url, options);
+    if (upstreamRes.ok || attempt >= RETRY_DELAYS_MS.length ||
+        (upstreamRes.status !== 429 && upstreamRes.status !== 503)) {
+      return upstreamRes;
     }
     await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt]));
   }
@@ -92,11 +89,11 @@ export default async function handler(req, res) {
   }
 
   /* Read server-side environment variable — never touches the browser */
-  const apiKey = process.env.GEMINI_KEY;
+  const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
     return res.status(500).json({
       error:
-        'GEMINI_KEY is not configured. Add it under Vercel → Settings → Environment Variables.',
+        'OPENROUTER_API_KEY is not configured. Add it under Vercel → Settings → Environment Variables.',
     });
   }
 
@@ -116,57 +113,47 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: '`answer` is required.' });
   }
 
-  /* Build the Gemini contents array */
-  const systemInstruction = buildSystemInstruction(resume, role);
-
-  const contents = [
-    /* System instruction as first user turn */
-    { role: 'user',  parts: [{ text: systemInstruction }] },
-    /* Synthetic model ack so Gemini treats the above as a constraint */
-    { role: 'model', parts: [{ text: 'Understood. I will follow these instructions exactly.' }] },
-    /* Prior conversation turns */
-    ...history,
-    /* Current candidate turn */
-    { role: 'user',  parts: [{ text: answer }] },
+  /* Keep the frontend's Gemini-shaped history contract, convert it only at the API boundary. */
+  const messages = [
+    { role: 'system', content: buildSystemInstruction(resume, role) },
+    ...history.map((turn) => ({
+      role: turn.role === 'model' ? 'assistant' : 'user',
+      content: Array.isArray(turn.parts) ? turn.parts.map((part) => part.text ?? '').join('') : '',
+    })),
+    { role: 'user', content: answer },
   ];
 
-  /* Call Gemini */
-  let geminiRes;
+  /* Call OpenRouter */
+  let upstreamRes;
   try {
-    geminiRes = await fetchWithRetry(`${GEMINI_URL}?key=${apiKey}`, {
+    upstreamRes = await fetchWithRetry(OPENROUTER_URL, {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
-        contents,
-        generationConfig: {
-          temperature:     0.7,
-          maxOutputTokens: 512,
-          topP:            0.9,
-        },
-        safetySettings: [
-          { category: 'HARM_CATEGORY_HARASSMENT',        threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-          { category: 'HARM_CATEGORY_HATE_SPEECH',       threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-          { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-          { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-        ],
+        model: OPENROUTER_MODEL,
+        messages,
+        temperature: 0.7,
+        max_tokens: 512,
+        top_p: 0.9,
+        reasoning: { enabled: false },
       }),
     });
   } catch (networkErr) {
     return res.status(500).json({
-      error: `Network error reaching Gemini: ${networkErr.message}`,
+      error: `Network error reaching OpenRouter: ${networkErr.message}`,
     });
   }
 
-  if (!geminiRes.ok) {
-    const errBody = await geminiRes.text();
+  if (!upstreamRes.ok) {
+    const errBody = await upstreamRes.text();
     return res.status(502).json({
-      error: `Gemini API error ${geminiRes.status}: ${errBody}`,
+      error: `OpenRouter API error ${upstreamRes.status}: ${errBody}`,
     });
   }
 
-  const data = await geminiRes.json();
-  const rawReply = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-  /* Strip any leaked Gemini thinking artifacts before the text is shown or spoken */
+  const data = await upstreamRes.json();
+  const rawReply = data?.choices?.[0]?.message?.content?.trim();
+  /* Strip any leaked thinking artifacts before the text is shown or spoken */
   const reply = rawReply
     ?.replace(/<thought>[\s\S]*?(<\/thought>|$)/gi, '')
     .replace(/<\/?thought>/gi, '')
@@ -175,7 +162,7 @@ export default async function handler(req, res) {
 
   if (!reply) {
     return res.status(502).json({
-      error: 'Gemini returned an empty response. Check your quota and model availability.',
+      error: 'OpenRouter returned an empty response. Check your quota and model availability.',
     });
   }
 
