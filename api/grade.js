@@ -73,6 +73,20 @@ function parseRatings(raw) {
 /* ─────────────────────────────────────────────────────────
    Handler
 ───────────────────────────────────────────────────────── */
+
+/* Retry with backoff on Gemini free-tier rate limits (429) and demand spikes (503). */
+async function fetchWithRetry(url, options) {
+  const RETRY_DELAYS_MS = [2000, 4000, 8000];
+  for (let attempt = 0; ; attempt++) {
+    const geminiRes = await fetchWithRetry(url, options);
+    if (geminiRes.ok || attempt >= RETRY_DELAYS_MS.length ||
+        (geminiRes.status !== 429 && geminiRes.status !== 503)) {
+      return geminiRes;
+    }
+    await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt]));
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed. Use POST.' });
