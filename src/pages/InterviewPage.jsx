@@ -46,6 +46,11 @@ import { useMockMentor }                        from '../context/MockMentorConte
 import { askGemini }                            from '../services/gemini';
 import { speakText, cancelSpeech, TTS_SUPPORTED } from '../services/tts';
 import { startTracking, stopTracking }             from '../tracking/faceTracker';
+import { createCoach, clearCoachSummary }         from '../tracking/coach';
+import {
+  SILENCE_MS, nextAck, nextBack, CUT_IN_LINE, isRambling, canBackchannel, canCheck,
+  speakQuick, checkAnswer, CHECK_MAX_PER_ANSWER,
+} from '../services/liveTalk';
 import './InterviewPage.css';
 
 /* ─────────────────────────────────────────────────────────
@@ -61,7 +66,7 @@ const INTERVIEWER_MAP = {
 const FIRST_TURN_SENTINEL = '__START_INTERVIEW__';
 
 /** ms of silence before auto-committing the spoken answer. */
-const SILENCE_TIMEOUT_MS = 2000;
+const SILENCE_TIMEOUT_MS = SILENCE_MS;
 
 /** True when the browser exposes webkitSpeechRecognition. */
 const SPEECH_SUPPORTED =
@@ -106,6 +111,18 @@ export default function InterviewPage() {
   const streamRef        = useRef(null); // MediaStream
   const timerRef         = useRef(null); // session interval
   const seededRef        = useRef(false);// first-question guard
+  const coachRef         = useRef(null);
+  const liveTextRef      = useRef('');
+  const answerStartRef   = useRef(0);
+  const lastWordAtRef    = useRef(0);
+  const lastBackRef      = useRef(0);
+  const lastCheckRef     = useRef(0);
+  const checksUsedRef    = useRef(0);
+  const checkInFlightRef = useRef(false);
+  const cutInRef         = useRef(false);
+  const interruptRef     = useRef(null);
+  const [backchannel, setBackchannel] = useState('');
+  const [coachTip, setCoachTip] = useState(null);
 
   /* Speech recognition refs */
   const recognitionRef    = useRef(null);  // SpeechRecognition instance
@@ -245,6 +262,11 @@ export default function InterviewPage() {
 
     const text = (textOverride ?? finalTranscriptRef.current).trim();
     finalTranscriptRef.current = '';
+    liveTextRef.current = '';
+    answerStartRef.current = 0;
+    checksUsedRef.current = 0;
+    lastCheckRef.current = 0;
+    setBackchannel('');
     setListenState('sending');
 
     if (!text) return; // nothing to send
@@ -264,6 +286,8 @@ export default function InterviewPage() {
 
     /* Reset accumulators */
     finalTranscriptRef.current = '';
+    liveTextRef.current = '';
+    answerStartRef.current = 0;
     setInterimText('');
     setReprompt(false);
 
@@ -312,6 +336,15 @@ export default function InterviewPage() {
       const liveText = (finalTranscriptRef.current + interim).trim();
       setInterimText(liveText);
       if (liveText) setSubtitle('');  // clear interviewer subtitle while user speaks
+      liveTextRef.current = liveText;
+      lastWordAtRef.current = Date.now();
+      if (!answerStartRef.current && liveText) answerStartRef.current = Date.now();
+      /* Rambling: politely cut in and move on (no model needed) */
+      if (!cutInRef.current && isRambling(liveText, answerStartRef.current, Date.now())) {
+        cutInRef.current = true;
+        setTimeout(() => commitAnswer(liveText), 0);
+        return;
+      }
 
       /* Reset the silence timer on every new word */
       clearTimeout(silenceTimerRef.current);
@@ -383,6 +416,11 @@ export default function InterviewPage() {
     setIsLoading(true);
     setApiError('');
     setReprompt(false);
+    /* Instant spoken reaction so the candidate is never met with silence while the model thinks */
+    if (userText !== FIRST_TURN_SENTINEL) {
+      speakQuick(cutInRef.current ? CUT_IN_LINE : nextAck());
+      cutInRef.current = false;
+    }
 
     try {
       const reply = await askGemini({
@@ -462,6 +500,70 @@ export default function InterviewPage() {
   useEffect(() => { sendToGeminiRef.current = sendToGemini; }, [sendToGemini]);
 
   /* ─────────────────────────────────────────────────────
+     Live-conversation helpers: back-channel nod + polite wrong-answer interrupt
+  ───────────────────────────────────────────────────── */
+  const handleInterrupt = useCallback((note) => {
+    const partial = liveTextRef.current.trim();
+    if (!partial) return;
+    stopListening('interrupt');
+    finalTranscriptRef.current = '';
+    liveTextRef.current = '';
+    answerStartRef.current = 0;
+    setInterimText('');
+    setBackchannel('');
+    const line = `Sorry to interrupt. ${note}`;
+    geminiHistoryRef.current = [
+      ...geminiHistoryRef.current,
+      { role: 'user',  parts: [{ text: partial }] },
+      { role: 'model', parts: [{ text: line    }] },
+    ];
+    addTurn('user', partial);
+    addTurn('mentor', line);
+    setSubtitle(line);
+    setListenState('idle');
+    setIsSpeaking(true);
+    speakText({
+      text: line, avatarId: avatar,
+      onStart: () => startMouthFallback(),
+      onBoundary: handleBoundary,
+      onEnd: () => { stopMouthAnim(); setIsSpeaking(false); },
+      onError: () => { stopMouthAnim(); setIsSpeaking(false); },
+    });
+  }, [stopListening, addTurn, avatar, startMouthFallback, handleBoundary, stopMouthAnim]);
+  useEffect(() => { interruptRef.current = handleInterrupt; }, [handleInterrupt]);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (listenStateRef.current !== 'listening') return;
+      const now = Date.now();
+      const text = liveTextRef.current;
+      const sinceWord = now - lastWordAtRef.current;
+      if (canBackchannel({ text, sinceWord, sinceLast: now - lastBackRef.current })) {
+        lastBackRef.current = now;
+        setBackchannel(nextBack());
+        setTimeout(() => setBackchannel(''), 1800);
+      }
+      if (canCheck({ text, sinceWord, sinceLast: now - lastCheckRef.current,
+                     used: checksUsedRef.current, inFlight: checkInFlightRef.current })) {
+        lastCheckRef.current = now;
+        checksUsedRef.current += 1;
+        checkInFlightRef.current = true;
+        const lastQ = [...geminiHistoryRef.current].reverse().find((t) => t.role === 'model')?.parts?.[0]?.text ?? '';
+        const snapshot = text;
+        checkAnswer({ role, question: lastQ, partial: text }).then((r) => {
+          checkInFlightRef.current = false;
+          /* Only interrupt if the answer is still being given and nothing was committed meanwhile */
+          if (r && listenStateRef.current === 'listening' && liveTextRef.current.startsWith(snapshot.slice(0, 20))) {
+            checksUsedRef.current = CHECK_MAX_PER_ANSWER;
+            interruptRef.current && interruptRef.current(r.note);
+          }
+        });
+      }
+    }, 400);
+    return () => clearInterval(id);
+  }, [role]);
+
+  /* ─────────────────────────────────────────────────────
      Auto-start listening when interviewer finishes speaking
   ───────────────────────────────────────────────────── */
   useEffect(() => {
@@ -485,7 +587,9 @@ export default function InterviewPage() {
   useEffect(() => {
     startWebcam().then(() => {
       // videoRef.current now has a live srcObject — start face tracking
-      startTracking(videoRef.current);
+      clearCoachSummary();
+      coachRef.current = createCoach(setCoachTip);
+      startTracking(videoRef.current, (smp) => coachRef.current && coachRef.current.push(smp));
     });
     timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000);
 
@@ -497,6 +601,7 @@ export default function InterviewPage() {
     return () => {
       clearInterval(timerRef.current);
       stopTracking();
+      if (coachRef.current) coachRef.current.save();
       stopWebcam();
       stopListening('unmount');
       cancelSpeech();               // stop TTS if component unmounts mid-sentence
@@ -700,6 +805,9 @@ export default function InterviewPage() {
             )}
           </div>
 
+          {backchannel && (
+            <div className="iv-backchannel" aria-live="polite">{backchannel}…</div>
+          )}
           <div className="iv-scanline" aria-hidden="true" />
         </div>
 
@@ -725,6 +833,12 @@ export default function InterviewPage() {
           ) : (
             <>
               <video ref={videoRef} className="iv-webcam" autoPlay playsInline muted aria-label="Your camera preview" />
+              {coachTip && (
+                <div className={`iv-coach iv-coach--${coachTip.key === 'good' ? 'good' : 'tip'}`} role="status" aria-live="polite" key={coachTip.key}>
+                  <span className="iv-coach__icon" aria-hidden="true">{coachTip.key === 'good' ? '✓' : '!'}</span>
+                  <span className="iv-coach__text">{coachTip.text}</span>
+                </div>
+              )}
               {/* Status pills */}
               <div className="iv-cam-pills" aria-hidden="true">
                 <span className="iv-cam-pill iv-cam-pill--cam">
@@ -895,4 +1009,4 @@ export default function InterviewPage() {
       </footer>
     </div>
   );
-    }
+        }
