@@ -835,6 +835,36 @@ function SectionHead({ icon, title, badge, id }) {
 /* ─────────────────────────────────────────────────────────
    Main page component
 ───────────────────────────────────────────────────────── */
+import { loadCoachSummary, TIPS as COACH_TIPS } from '../tracking/coach';
+
+function CoachSection({ data }) {
+  if (!data || !data.samples) return null;
+  const rows = Object.entries(data.issues || {}).filter(([, v]) => v.seconds > 0).sort((a, b) => b[1].seconds - a[1].seconds);
+  return (
+    <section className="rp2-section" aria-labelledby="rp2-coach-heading">
+      <div className="rp2-section__head">
+        <h2 className="rp2-section__title" id="rp2-coach-heading">Camera Coaching</h2>
+        <span className="rp2-section__badge">{data.goodPct}% good posture</span>
+      </div>
+      <div className="rp2-section--card rp2-coach">
+        <p className="rp2-coach__lead">Seconds the camera saw each issue during the interview ({data.samples}s tracked).</p>
+        {rows.length === 0 ? <p className="rp2-coach__ok">No issues spotted. Nice and steady.</p> : (
+          <ul className="rp2-coach__list">
+            {rows.map(([k, v]) => (
+              <li key={k} className="rp2-coach__row">
+                <span className="rp2-coach__name">{(COACH_TIPS[k] || {}).text || k}</span>
+                <span className="rp2-coach__sec">{v.seconds}s</span>
+                <span className="rp2-coach__advice">{(COACH_TIPS[k] || {}).advice}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="rp2-coach__note">Estimated from camera landmarks, so treat it as a guide.</p>
+      </div>
+    </section>
+  );
+}
+
 export default function ReportPage() {
   const navigate = useNavigate();
   const { transcript, role, avatar, clearTranscript } = useMockMentor();
@@ -848,6 +878,7 @@ export default function ReportPage() {
   }, []);
 
   const vStats = visionSession?.stats ?? null;
+  const coachData = useMemo(() => loadCoachSummary(), []);
 
   /* Derived metrics */
   const confidence = useMemo(() => {
@@ -1052,6 +1083,7 @@ export default function ReportPage() {
           4. SPEECH ANALYSIS
       ══════════════════════════════════════════════════ */}
       <SpeechStats speech={speech} />
+      <CoachSection data={coachData} />
 
       {/* ══════════════════════════════════════════════════
           5. COMMUNICATION EVALUATION
