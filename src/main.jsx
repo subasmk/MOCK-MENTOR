@@ -11,6 +11,7 @@ import App from './App';
 import { MockMentorProvider } from './context/MockMentorContext';
 
 import './styles/global.css';
+import './styles/theme.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
