@@ -171,6 +171,15 @@ export async function startTracking(videoEl, onSample) {
       };
 
       if (result) {
+        const box = result.detection.box;
+        const vw  = videoEl.videoWidth || 1;
+        const pts = result.landmarks.positions;
+        const fxs = pts.map((q) => q.x);
+        const fMin = Math.min(...fxs), fMax = Math.max(...fxs);
+        sample.faceRatio = box.width / vw;
+        sample.centerX   = (box.x + box.width / 2) / vw;
+        sample.yaw       = (pts[30].x - (fMin + (fMax - fMin) / 2)) / ((fMax - fMin) || 1);
+        sample.scores    = result.expressions;
         sample.faceDetected = true;
         sample.expression   = classifyExpression(result.expressions);
         sample.eyeContact   = estimateEyeContact(result.landmarks);
