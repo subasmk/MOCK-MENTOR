@@ -13,15 +13,25 @@
  */
 import React, { createContext, useContext, useState, useCallback } from 'react';
 
+const DEMO_TRANSCRIPT = [
+  ['mentor','Hi, I am Priya. Tell me about yourself and a project you are proud of.'],
+  ['user','Um, I am a final-year CS student. I built a campus bus tracker in Flask, you know, and a to-do app in React.'],
+  ['mentor','Nice. What was the hardest bug in the bus tracker and how did you fix it?'],
+  ['user','The GPS updates arrived out of order, so I added timestamps and ignored older ones. It was basically an ordering problem.'],
+  ['mentor','How would you explain a database index to a non-technical friend?'],
+  ['user','Like the index of a book, so you jump to the page instead of reading everything. Like, it makes reads fast but writes a bit slower.'],
+].map(([speaker,text],i)=>({id:i,speaker,text,timestamp:new Date(Date.now()-(6-i)*40000).toISOString()}));
+
 /* ── Context object ── */
 const MockMentorContext = createContext(null);
 
 /* ── Provider ── */
 export function MockMentorProvider({ children }) {
-  const [resumeText, setResumeText]   = useState('');
-  const [role, setRole]               = useState('');
-  const [avatar, setAvatar]           = useState('');
-  const [transcript, setTranscript]   = useState([]);
+  const demo = typeof location!=='undefined' && new URLSearchParams(location.search).has('demo');
+  const [resumeText, setResumeText]   = useState(demo ? 'SAMPLE RESUME (demo only). Alex Sample, final-year CS student. Projects: a to-do web app (React), a campus bus tracker (Python, Flask). Skills: Python, Java, React.' : '');
+  const [role, setRole]               = useState(demo ? 'SDE' : '');
+  const [avatar, setAvatar]           = useState(demo ? 'female' : '');
+  const [transcript, setTranscript]   = useState(demo ? DEMO_TRANSCRIPT : []);
 
   /**
    * Append a single turn to the interview transcript.
