@@ -1,50 +1,51 @@
+<div align="center">
+
+<img src="public/avatars/interviewer-female.png" width="110" alt=""/> <img src="public/avatars/interviewer-male.png" width="110" alt=""/> <img src="public/avatars/interviewer-robot.png" width="110" alt=""/>
+
 # MockMentor
 
-**An AI HR interviewer that practices with you from your own resume — and tells you exactly what to fix before the real interview.**
+**An AI HR interviewer that practises with you from your own resume, then tells you exactly what to fix before the real one.**
 
-MockMentor feels like a one-on-one video call with HR. It asks questions based on your resume and target role, listens to your answers, watches your confidence through the webcam, and ends with a scored report: answer ratings, communication evaluation, speech analysis, and personalized what-to-improve tips.
+[![Live demo](https://img.shields.io/badge/Live_demo-mock--mentor--taupe.vercel.app-16a34a?style=for-the-badge&logo=vercel&logoColor=white)](https://mock-mentor-taupe.vercel.app)
+[![IBM Bob 2.0 Hackathon](https://img.shields.io/badge/IBM_Bob_2.0-Hackathon_build-0f62fe?style=for-the-badge)](bob_sessions/)
 
-Built for students who blank out in interviews. Practice until the fear is gone.
+</div>
 
-## Features
+---
 
-- **Resume-based interviews** — paste your resume, pick a role (SDE, Data Analyst, Marketing, HR, Product), and the AI interviewer asks 6 tailored questions with real follow-ups
-- **Pick your interviewer** — male, female, or robot, each using its original illustrated portrait, with an animated mouth timed to the interviewer's voice, subtle idle motion, its own voice and subtitles
-- **Voice or typed answers** — speak naturally (Web Speech API) or type; the full transcript is saved
-- **Live confidence tracking** — face-api.js reads your expressions and eye contact through the webcam while you answer
-- **Scored report** — per-answer ratings, communication evaluation (filler words, pace, clarity), speech analysis, and concrete tips on what to improve
+## Why it exists
 
-## Meet your interviewers
+Most students blank out in interviews, not because they lack skills but because they never practised under pressure. MockMentor feels like a one-on-one video call with HR. It reads your resume, asks questions for your target role, watches how confident you look, and ends with a scored report.
 
-<p align="center">
-  <img src="public/avatars/interviewer-male.png" width="180" alt="Male interviewer"/>
-  <img src="public/avatars/interviewer-female.png" width="180" alt="Female interviewer"/>
-  <img src="public/avatars/interviewer-robot.png" width="180" alt="Robot interviewer"/>
-</p>
+## What you get
 
-## Tech stack
+| | |
+|---|---|
+| **Resume-based questions** | Paste your resume, pick a role (SDE, Data Analyst, Marketing, HR, Product). The interviewer asks 6 tailored questions with real follow-ups. |
+| **Pick your interviewer** | Male, female or robot. Each has its own portrait, voice and subtitles, with a mouth that moves in time with the speech. |
+| **Speak or type** | Answer out loud (browser speech recognition) or type. The full transcript is saved. |
+| **Live camera coaching** | Facial expression and eye contact are tracked while you answer, with one small tip at a time on screen. |
+| **Scored report** | Per-answer ratings, communication evaluation (filler words, pace, clarity), speech analysis and concrete things to improve. |
 
-- **Frontend:** React + Vite
-- **AI:** OpenRouter (free models with automatic fallback) (question generation, answer grading, communication evaluation)
-- **Vision:** face-api.js pre-trained expression models
-- **Voice:** Web Speech API (speech recognition + speechSynthesis)
-- **Avatar:** Original illustrated portraits with a mouth-region image animation driven by browser speech word boundaries (timed fallback where boundaries are unavailable); no 3D downloads or GPU required
-- **Backend:** Vercel serverless API routes (`api/interview.js`, `api/grade.js`, `api/evaluate.js`) — the OpenRouter key stays server-side in a `OPENROUTER_API_KEY` env var and never ships to the browser
+## Built with
 
-## Run it locally
+React + Vite, Vercel serverless functions, OpenRouter free models (automatic fallback), face-api.js, Web Speech API. The AI key stays on the server and never reaches the browser.
+
+## Hackathon
+
+Built for the **IBM Bob 2.0 Hackathon** by [Subash M K](https://github.com/subasmk) and teammate **Suren**, with IBM Bob IDE agents. The exported Bob agent session reports (task-by-task notes and screenshots) are in [`bob_sessions/`](bob_sessions/).
+
+## Try it
+
+Open the **[live demo](https://mock-mentor-taupe.vercel.app)**, allow the camera and microphone in Chrome or Edge, and start an interview.
+
+<details>
+<summary>Run it yourself</summary>
 
 ```bash
 npm install
-echo "OPENROUTER_API_KEY=your-openrouter-api-key" > .env
-npx vercel dev        # serves the app + /api routes together
+echo "OPENROUTER_API_KEY=your-key" > .env
+npx vercel dev
 ```
 
-(Or `npm run dev` for the UI alone — point the `/api` proxy at any local function runner on port 3001.)
-
-## Deploy
-
-Deploy to Vercel and set the `OPENROUTER_API_KEY` environment variable in the project settings. Redeploy after adding the key. Free-model availability and rate limits can change; check the OpenRouter dashboard if requests fail.
-
-## Built with IBM Bob
-
-MockMentor was built with IBM Bob IDE agents for the **IBM Bob 2.0 Hackathon**. Our exported Bob agent session reports — task-by-task markdown and screenshots — are in [`bob_sessions/`](bob_sessions/).
+</details>
